@@ -76,7 +76,7 @@ public enum Key: Hashable, Sendable {
             let value = DecimalRounding.canonical(try Engine.evaluate(expression))
             result = value
             guard expression != lastSaved else { return }
-            try? store.add(expression: expression, result: value)
+            _ = try? store.add(expression: expression, result: value)
             lastSaved = expression
             refreshRecent()
         } catch {
@@ -102,7 +102,7 @@ public enum Key: Hashable, Sendable {
         }
     }
 
-    private func refreshRecent() {
+    public func refreshRecent() {
         recent = (try? store.recent(limit: 8)) ?? []
     }
 
