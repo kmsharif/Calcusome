@@ -57,6 +57,7 @@ struct RootView: View {
     @State private var showSettings = false
     @AppStorage(Pref.autoClearDays) private var autoClearDays = 0
     @AppStorage(Pref.showKeypad) private var showKeypad = true
+    @SceneStorage("pinned") private var pinned = false
     @Environment(\.scenePhase) private var scenePhase
 
     init(store: HistoryStore) {
@@ -82,6 +83,13 @@ struct RootView: View {
                         if !showHistory { ToolbarItem(placement: .navigation) { historyToggle } }
                         #if os(iOS)
                         ToolbarItem { Button("Settings", systemImage: "gearshape") { showSettings = true } }
+                        #else
+                        ToolbarItem {
+                            Button(pinned ? "Unpin Window" : "Keep on Top", systemImage: pinned ? "pin.fill" : "pin") {
+                                pinned.toggle()
+                            }
+                            .help(pinned ? "Unpin Window" : "Keep on Top")
+                        }
                         #endif
                     }
             }
@@ -91,6 +99,7 @@ struct RootView: View {
         .themed()
         #if os(macOS)
         .frame(minWidth: 680, minHeight: showKeypad ? 640 : 320)
+        .background(FloatingWindow(floating: pinned))
         #else
         .sheet(isPresented: $showSettings) {
             NavigationStack {
@@ -116,6 +125,18 @@ struct RootView: View {
 }
 
 #if os(macOS)
+/// Floats the hosting window above every other app's windows while `floating` is on.
+struct FloatingWindow: NSViewRepresentable {
+    let floating: Bool
+
+    func makeNSView(context: Context) -> NSView { NSView() }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        // The view joins its window after the first update, so set the level on the next turn.
+        DispatchQueue.main.async { view.window?.level = floating ? .floating : .normal }
+    }
+}
+
 struct MenuBarCalculator: View {
     @State private var model: CalculatorModel
     @AppStorage(Pref.showKeypad) private var showKeypad = true
