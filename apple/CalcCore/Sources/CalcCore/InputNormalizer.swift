@@ -4,7 +4,7 @@ import Foundation
 /// into their locale for display.
 public enum InputNormalizer {
     private static let operatorAliases: [Character: Character] = [
-        "*": "×", "x": "×", "X": "×", "/": "÷", "-": "−",
+        "*": "×", "x": "×", "X": "×", "/": "÷", "-": "−", "–": "−", "—": "−",
     ]
 
     /// Zero code points of the non-ASCII digit sets we accept: Arabic-Indic, Extended Arabic-Indic, Bengali.
@@ -29,7 +29,7 @@ public enum InputNormalizer {
         canonical.replacingOccurrences(of: ".", with: locale.decimalSeparator ?? ".")
     }
 
-    private static func asciiDigit(_ u: Unicode.Scalar) -> Unicode.Scalar {
+    static func asciiDigit(_ u: Unicode.Scalar) -> Unicode.Scalar {
         for zero in digitZeros where (zero...zero + 9).contains(u.value) {
             return Unicode.Scalar(0x30 + u.value - zero)!
         }

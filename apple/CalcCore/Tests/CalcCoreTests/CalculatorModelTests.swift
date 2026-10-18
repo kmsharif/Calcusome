@@ -159,3 +159,13 @@ extension CalculatorModelTests {
         #expect(model.expression == "1.23+4.")
     }
 }
+
+@Test func typedNativeDigitsMapToKeys() {
+    #expect(Key(typed: "৫") == .digit(5))
+    #expect(Key(typed: "٧") == .digit(7))
+    #expect(Key(typed: "۳") == .digit(3))
+}
+
+@Test func numpadEnterIsEquals() {
+    #expect(Key(typed: "\u{3}") == .equals)
+}

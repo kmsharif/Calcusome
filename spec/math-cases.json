@@ -51,6 +51,8 @@
     {"id": "persian",       "locale": "fa_IR", "input": "۵۰۰×۶۴",     "expression": "500×64",     "result": "32000"},
     {"id": "ascii-ops",     "locale": "en_US", "input": "12*3/4-1",   "expression": "12×3÷4−1",   "result": "8"},
     {"id": "x-as-times",    "locale": "en_US", "input": "3x4",        "expression": "3×4",        "result": "12"},
+    {"id": "en-dash",       "locale": "en_US", "input": "5–3",        "expression": "5−3",        "result": "2"},
+    {"id": "em-dash",       "locale": "en_US", "input": "5—3",        "expression": "5−3",        "result": "2"},
     {"id": "spaces",        "locale": "en_US", "input": " 2 + 2 ",    "expression": "2+2",        "result": "4"}
   ]
 }

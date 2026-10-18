@@ -23,7 +23,11 @@ public enum Key: Hashable, Sendable {
     /// Hardware keyboard input. "," is the decimal point only where the locale uses it;
     /// elsewhere it's grouping and ignored, matching how pasted text is read.
     public init?(typed c: Character, locale: Locale = .current) {
-        if let d = c.wholeNumberValue, c.isASCII { self = .digit(d); return }
+        if c.unicodeScalars.count == 1, let scalar = c.unicodeScalars.first,
+           case let ascii = InputNormalizer.asciiDigit(scalar), ("0"..."9").contains(ascii) {
+            self = .digit(Int(ascii.value) - 0x30)  // Bengali, Arabic-Indic, Persian keyboards too
+            return
+        }
         switch c {
         case ".": self = .decimal
         case "," where locale.decimalSeparator == ",": self = .decimal
@@ -34,7 +38,7 @@ public enum Key: Hashable, Sendable {
         case "%": self = .percent
         case "(": self = .openParen
         case ")": self = .closeParen
-        case "=", "\r", "\n": self = .equals
+        case "=", "\r", "\n", "\u{3}": self = .equals  // U+0003 is numpad Enter on Mac
         default: return nil
         }
     }
