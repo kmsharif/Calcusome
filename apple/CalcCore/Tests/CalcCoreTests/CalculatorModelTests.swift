@@ -24,6 +24,18 @@ import Testing
         #expect(try store.all().count == 1)
     }
 
+    @Test func previewWhileTyping() throws {
+        press(.digit(3))
+        #expect(model.preview == nil)  // lone number: nothing to show
+        press(.add, .digit(3), .digit(2))
+        #expect(model.preview == "35")
+        press(.add)
+        #expect(model.preview == nil)  // incomplete
+        press(.backspace, .equals)
+        #expect(model.preview == nil)  // result shown instead
+        #expect(try store.all().count == 1)
+    }
+
     @Test func incompleteDoesNothing() throws {
         press(.digit(5), .add, .equals)
         #expect(model.error == .syntax)

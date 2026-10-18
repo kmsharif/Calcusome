@@ -70,6 +70,7 @@ struct CalculatorView: View {
 
     private var secondaryLine: String {
         if let error = model.error { return Self.message(for: error) }
+        if let preview = model.preview { return "= " + InputNormalizer.display(result: preview, locale: locale) }
         return model.result == nil ? " " : expressionText
     }
 

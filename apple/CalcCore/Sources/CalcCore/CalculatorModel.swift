@@ -104,7 +104,6 @@ public enum Key: Hashable, Sendable {
         do {
             let value = try Engine.evaluate(expression)
             result = value
-            let isLoneNumber = expression.drop { $0 == "−" }.allSatisfy { $0.isNumber || $0 == "." }
             guard expression != lastSaved, !isLoneNumber else { return }
             guard (try? store.add(expression: expression, result: value)) != nil else { return }
             lastSaved = expression
@@ -112,6 +111,16 @@ public enum Key: Hashable, Sendable {
         } catch {
             self.error = error
         }
+    }
+
+    /// Live result while typing; nil until the expression is complete and does real work.
+    public var preview: String? {
+        guard result == nil, !isLoneNumber else { return nil }
+        return try? Engine.evaluate(expression)
+    }
+
+    private var isLoneNumber: Bool {
+        expression.drop { $0 == "−" }.allSatisfy { $0.isNumber || $0 == "." }
     }
 
     /// Typing after a result starts a new expression.
