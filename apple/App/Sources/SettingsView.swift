@@ -21,6 +21,8 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            AccountSection(store: store)
+
             Section("Appearance") {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 80), spacing: 12)], spacing: 12) {
                     ForEach(Theme.all) { themeCell($0) }

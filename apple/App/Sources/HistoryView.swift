@@ -133,13 +133,26 @@ struct CSVFile: Transferable {
 extension View {
     /// Export and Clear History presentation, shared by the history toolbar and Settings.
     func historyTools(store: HistoryStore, csv: Binding<CSVFile?>, clearing: Binding<Bool>) -> some View {
-        fileExporter(isPresented: Binding(get: { csv.wrappedValue != nil }, set: { if !$0 { csv.wrappedValue = nil } }),
-                     item: csv.wrappedValue, contentTypes: [.commaSeparatedText],
+        modifier(HistoryTools(store: store, csv: csv, clearing: clearing))
+    }
+}
+
+private struct HistoryTools: ViewModifier {
+    let store: HistoryStore
+    @Binding var csv: CSVFile?
+    @Binding var clearing: Bool
+    @Environment(Account.self) private var account
+
+    func body(content: Content) -> some View {
+        content.fileExporter(isPresented: Binding(get: { csv != nil }, set: { if !$0 { csv = nil } }),
+                     item: csv, contentTypes: [.commaSeparatedText],
                      defaultFilename: "Calcusome History") { _ in }
-        .confirmationDialog("Clear history?", isPresented: clearing, titleVisibility: .visible) {
+        .confirmationDialog("Clear history?", isPresented: $clearing, titleVisibility: .visible) {
             Button("Clear History", role: .destructive) { try? store.deleteUnpinned(before: .now) }
         } message: {
-            Text("Bookmarked calculations are kept.")
+            Text(account.state == .signedOut
+                 ? "Bookmarked calculations are kept."
+                 : "Bookmarked calculations are kept. This clears history on all your signed-in devices.")
         }
     }
 }
