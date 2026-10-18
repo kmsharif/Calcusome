@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import SwiftData
 
-/// Local history. Deletes are tombstones so they can reach other devices once sync lands.
+/// Local history. Deletes are tombstones so they can reach other devices.
 @MainActor @Observable public final class HistoryStore {
     /// Bumped on every save, so views in every window can refresh.
     public private(set) var revision = 0
@@ -12,11 +12,26 @@ import SwiftData
     private let deviceID: String
     private let now: () -> Date
 
+    /// Signed-in account; new entries are stamped with it. Nil while signed out.
+    public var userID: UUID?
+    /// Fired after every local mutation (not after `apply`), so the sync engine can schedule a push.
+    public var onLocalChange: (() -> Void)?
+
     public init(container: ModelContainer, deviceID: String, now: @escaping () -> Date = Date.init) {
         self.container = container
         context = container.mainContext
         self.deviceID = deviceID
-        self.now = now
+        self.now = { Self.wholeMilliseconds(now()) }
+    }
+
+    /// Whole milliseconds survive a trip through ISO 8601 JSON unchanged.
+    static func wholeMilliseconds(_ date: Date) -> Date {
+        Date(timeIntervalSince1970: (date.timeIntervalSince1970 * 1000).rounded(.down) / 1000)
+    }
+
+    /// Now, or 1 ms past `previous` if this clock trails the device that wrote it: an edit must beat what it replaces.
+    private func stamp(after previous: Date) -> Date {
+        max(now(), Date(timeIntervalSince1970: ((previous.timeIntervalSince1970 * 1000).rounded() + 1) / 1000))
     }
 
     public static func inMemory(deviceID: String = "test", now: @escaping () -> Date = Date.init) throws -> HistoryStore {
@@ -27,6 +42,7 @@ import SwiftData
     @discardableResult
     public func add(expression: String, result: String) throws -> HistoryEntry {
         let entry = HistoryEntry(deviceID: deviceID, expression: expression, result: result, at: now())
+        entry.userID = userID
         context.insert(entry)
         try save()
         return entry
@@ -60,7 +76,10 @@ import SwiftData
     }
 
     public func setLabel(_ entry: HistoryEntry, _ label: String?) throws {
-        entry.label = (label?.isEmpty ?? true) ? nil : label
+        // The server caps labels at 200 code points (`char_length`); cut whole characters until it fits.
+        var cut = Substring(label ?? "").prefix(RemoteEntry.maxLabel)
+        while cut.unicodeScalars.count > RemoteEntry.maxLabel { cut = cut.dropLast() }
+        entry.label = cut.isEmpty ? nil : String(cut)
         try touch(entry)
     }
 
@@ -74,10 +93,11 @@ import SwiftData
     public func deleteUnpinned(before cutoff: Date) throws -> Int {
         let old = try context.fetch(live()).filter { !$0.pinned && $0.createdAt < cutoff }
         guard !old.isEmpty else { return 0 }
-        let stamp = now()
+        let deleted = now()
         for entry in old {
-            entry.deletedAt = stamp
-            entry.updatedAt = stamp
+            entry.deletedAt = deleted
+            entry.updatedAt = stamp(after: entry.updatedAt)
+            entry.needsPush = true
         }
         try save()
         return old.count
@@ -98,16 +118,95 @@ import SwiftData
     }
 
     private func touch(_ entry: HistoryEntry) throws {
-        entry.updatedAt = now()
+        entry.updatedAt = stamp(after: entry.updatedAt)
+        entry.needsPush = true
         try save()
     }
 
-    private func save() throws {
+    private func save(local: Bool = true) throws {
         try context.save()
         revision += 1
+        if local { onLocalChange?() }
     }
 
+    // MARK: Sync
+
+    /// Dirty rows of the signed-in account, oldest edit first.
+    public func pendingPush(limit: Int) throws -> [RemoteEntry] {
+        try pending().prefix(limit).map { RemoteEntry($0) }
+    }
+
+    public func pendingCount() throws -> Int { try pending().count }
+
+    /// Clears `needsPush` only where the row still matches the pushed snapshot, so edits made mid-push stay pending.
+    public func markPushed(_ pushed: [RemoteEntry]) throws {
+        let byID = Dictionary(pushed.map { ($0.id, $0) }, uniquingKeysWith: { $1 })
+        for entry in try context.fetch(FetchDescriptor<HistoryEntry>()) {
+            guard let p = byID[entry.id], entry.updatedAt == p.updatedAt, entry.deletedAt == p.deletedAt else { continue }
+            entry.needsPush = false
+        }
+        try save(local: false)
+    }
+
+    /// Merges server rows into the local store with the server's rule. Rows where local wins stay (or become) dirty.
+    /// Rows of any other account (all of them while signed out) are ignored: a pull that lands after sign-out must not
+    /// bring back what `purge` removed.
+    public func apply(_ remote: [RemoteEntry]) throws {
+        // ponytail: one fetch of every row; index by id in the predicate if history grows past ~10k.
+        var local = Dictionary(try context.fetch(FetchDescriptor<HistoryEntry>()).map { ($0.id, $0) }, uniquingKeysWith: { $1 })
+        for r in remote where r.userID == userID {
+            if let entry = local[r.id] {
+                var m = RemoteEntry.merged(existing: RemoteEntry(entry, fallbackUserID: r.userID), incoming: r)
+                m.syncedAt = r.syncedAt
+                entry.apply(m)
+                entry.needsPush = m != r
+            } else {
+                let entry = HistoryEntry(r)
+                context.insert(entry)
+                local[r.id] = entry
+            }
+        }
+        try save(local: false)
+    }
+
+    /// Signs in: claims every signed-out entry for `userID` and queues it for push.
+    public func adopt(userID: UUID) throws {
+        self.userID = userID
+        for entry in try context.fetch(FetchDescriptor<HistoryEntry>(predicate: #Predicate { $0.userID == nil })) {
+            // Rows from before sync kept sub-millisecond dates; the wire would cut them and the row would never settle.
+            entry.createdAt = Self.wholeMilliseconds(entry.createdAt)
+            entry.updatedAt = Self.wholeMilliseconds(entry.updatedAt)
+            entry.deletedAt = entry.deletedAt.map(Self.wholeMilliseconds)
+            entry.userID = userID
+            entry.needsPush = true
+        }
+        try save()
+    }
+
+    /// Signs out: really deletes that account's rows from this device (the server keeps them). With `keepUnsynced`,
+    /// rows that never reached the server stay, still owned by `userID`: only that account's next sign-in pushes them.
+    public func purge(userID: UUID, keepUnsynced: Bool) throws {
+        for entry in try context.fetch(FetchDescriptor<HistoryEntry>(predicate: #Predicate { $0.userID == userID })) {
+            if !(keepUnsynced && entry.needsPush) { context.delete(entry) }
+        }
+        self.userID = nil
+        try save(local: false)
+    }
+
+    /// The signed-in account's dirty rows only: another account's kept rows would fail RLS and sink the whole batch.
+    /// Rows over a server limit stay local-only: one would fail its whole push batch.
+    /// ponytail: fetches every dirty row to filter in memory; fine while the backlog is small.
+    private func pending() throws -> [HistoryEntry] {
+        guard let uid = userID else { return [] }
+        let descriptor = FetchDescriptor<HistoryEntry>(predicate: #Predicate { $0.needsPush && $0.userID == uid },
+                                                       sortBy: [SortDescriptor(\.updatedAt)])
+        return try context.fetch(descriptor).filter(\.fitsServer)
+    }
+
+    /// Live rows of the signed-in account plus signed-out rows; another account's kept rows stay hidden and untouched.
     private func live() -> FetchDescriptor<HistoryEntry> {
-        FetchDescriptor(predicate: #Predicate { $0.deletedAt == nil }, sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+        let uid = userID
+        return FetchDescriptor(predicate: #Predicate { $0.deletedAt == nil && ($0.userID == uid || $0.userID == nil) },
+                               sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
     }
 }

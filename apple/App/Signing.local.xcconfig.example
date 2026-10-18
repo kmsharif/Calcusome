@@ -1,0 +1,4 @@
+// Copy to Signing.local.xcconfig (git-ignored) to turn on Sign in with Apple; it needs a paid developer team.
+DEVELOPMENT_TEAM = YOUR_TEAM_ID
+CODE_SIGN_ENTITLEMENTS = Calcusome.entitlements
+MAC_SIGN_IDENTITY = Apple Development

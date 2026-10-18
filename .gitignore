@@ -4,3 +4,7 @@ DerivedData/
 .DS_Store
 .superpowers/
 .swiftpm/
+supabase/.temp/
+supabase/.branches/
+supabase/.env
+apple/App/Signing.local.xcconfig

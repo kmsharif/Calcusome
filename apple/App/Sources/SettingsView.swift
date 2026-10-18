@@ -4,6 +4,7 @@ import SwiftUI
 /// ⌘, on Mac; the gear button's sheet on iPad.
 struct SettingsView: View {
     let store: HistoryStore
+    @Environment(Account.self) private var account
     @AppStorage(Pref.theme) private var themeID = Theme.graphite.id
     @AppStorage(Pref.size) private var size = DisplaySize.medium
     @AppStorage(Pref.resultFormat) private var format = ResultFormat.decimal
@@ -21,6 +22,8 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            AccountSection(store: store)
+
             Section("Appearance") {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 80), spacing: 12)], spacing: 12) {
                     ForEach(Theme.all) { themeCell($0) }
@@ -44,7 +47,7 @@ struct SettingsView: View {
                 Toggle("Copy result on =", isOn: $copyOnEquals)
             }
 
-            Section("History") {
+            Section {
                 Picker("Auto clear", selection: $autoClearDays) {
                     Text("Never").tag(0)
                     Text("After 1 day").tag(1)
@@ -53,6 +56,12 @@ struct SettingsView: View {
                 }
                 Button("Export…") { csv = try? CSVFile(store: store) }
                 Button("Clear History…", role: .destructive) { clearing = true }
+            } header: {
+                Text("History")
+            } footer: {
+                if case .signedIn = account.state {
+                    Text("Auto clear also removes history from your other signed-in devices.")
+                }
             }
 
             #if os(macOS)

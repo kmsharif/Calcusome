@@ -16,3 +16,15 @@ jobs:
           xcodegen
           xcodebuild -scheme Calcusome -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
           xcodebuild -scheme Calcusome -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
+  db:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase start
+        env:
+          GOOGLE_CLIENT_ID: ci-placeholder
+          GOOGLE_CLIENT_SECRET: ci-placeholder
+      - run: supabase test db

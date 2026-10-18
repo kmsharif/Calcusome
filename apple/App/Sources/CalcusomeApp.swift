@@ -5,6 +5,7 @@ import SwiftUI
 @main
 struct CalcusomeApp: App {
     private let store: HistoryStore
+    private let account: Account
     private let container: ModelContainer
     #if os(macOS)
     @AppStorage(Pref.menuBar) private var showMenuBar = true
@@ -19,11 +20,13 @@ struct CalcusomeApp: App {
             fatalError("History store failed to open: \(error)")
         }
         store = HistoryStore(container: container, deviceID: DeviceID.current())
+        account = Account(store: store)
     }
 
     var body: some Scene {
         WindowGroup {
             RootView(store: store)
+                .environment(account)
         }
         .modelContainer(container)
         .defaultSize(width: 920, height: 760)
@@ -39,10 +42,12 @@ struct CalcusomeApp: App {
         #if os(macOS)
         Settings {
             SettingsView(store: store)
+                .environment(account)
         }
 
         MenuBarExtra("Calcusome", systemImage: "plus.forwardslash.minus", isInserted: $showMenuBar) {
             MenuBarCalculator(store: store)
+                .environment(account)
         }
         .menuBarExtraStyle(.window)
         #endif
@@ -57,7 +62,9 @@ struct RootView: View {
     @State private var showSettings = false
     @AppStorage(Pref.autoClearDays) private var autoClearDays = 0
     @AppStorage(Pref.showKeypad) private var showKeypad = true
+    @SceneStorage("pinned") private var pinned = false
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(Account.self) private var account
 
     init(store: HistoryStore) {
         self.store = store
@@ -82,6 +89,13 @@ struct RootView: View {
                         if !showHistory { ToolbarItem(placement: .navigation) { historyToggle } }
                         #if os(iOS)
                         ToolbarItem { Button("Settings", systemImage: "gearshape") { showSettings = true } }
+                        #else
+                        ToolbarItem {
+                            Button(pinned ? "Unpin Window" : "Keep on Top", systemImage: pinned ? "pin.fill" : "pin") {
+                                pinned.toggle()
+                            }
+                            .help(pinned ? "Unpin Window" : "Keep on Top")
+                        }
                         #endif
                     }
             }
@@ -90,7 +104,8 @@ struct RootView: View {
         .environment(model)
         .themed()
         #if os(macOS)
-        .frame(minWidth: 680, minHeight: showKeypad ? 640 : 320)
+        .frame(minWidth: showHistory ? 660 : 360, minHeight: showKeypad ? 540 : 240)
+        .background(FloatingWindow(floating: pinned))
         #else
         .sheet(isPresented: $showSettings) {
             NavigationStack {
@@ -99,7 +114,11 @@ struct RootView: View {
             }
         }
         #endif
-        .onChange(of: scenePhase, initial: true) { if scenePhase == .active { autoClear() } }
+        .onChange(of: scenePhase, initial: true) {
+            guard scenePhase == .active else { return }
+            autoClear()
+            account.sync?.scheduleSync(after: .zero)
+        }
         .onChange(of: autoClearDays) { autoClear() }
     }
 
@@ -116,6 +135,18 @@ struct RootView: View {
 }
 
 #if os(macOS)
+/// Floats the hosting window above every other app's windows while `floating` is on.
+struct FloatingWindow: NSViewRepresentable {
+    let floating: Bool
+
+    func makeNSView(context: Context) -> NSView { NSView() }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        // The view joins its window after the first update, so set the level on the next turn.
+        DispatchQueue.main.async { view.window?.level = floating ? .floating : .normal }
+    }
+}
+
 struct MenuBarCalculator: View {
     @State private var model: CalculatorModel
     @AppStorage(Pref.showKeypad) private var showKeypad = true

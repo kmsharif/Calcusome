@@ -6,6 +6,9 @@ options:
 packages:
   CalcCore:
     path: ../CalcCore
+  Supabase:
+    url: https://github.com/supabase/supabase-swift
+    from: "2.55.4"
 targets:
   Calcusome:
     type: application
@@ -13,6 +16,11 @@ targets:
     sources: [Sources, Resources]
     dependencies:
       - package: CalcCore
+      - package: Supabase
+        product: Supabase
+    configFiles:  # Base.xcconfig pulls in the optional, git-ignored Signing.local.xcconfig
+      Debug: Base.xcconfig
+      Release: Base.xcconfig
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.calcusome.app  # placeholder, replace before TestFlight
@@ -28,4 +36,4 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "6.0"
         CODE_SIGN_STYLE: Automatic
-        "CODE_SIGN_IDENTITY[sdk=macosx*]": "-"
+        "CODE_SIGN_IDENTITY[sdk=macosx*]": $(MAC_SIGN_IDENTITY)  # set in Base.xcconfig
