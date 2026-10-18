@@ -59,3 +59,12 @@ func spec(_ c: SpecCase) throws {
             == "0.3333333333333333333333333333333333")
     #expect(InputNormalizer.display(expression: "1.5×2", locale: de) == "1,5×2")
 }
+
+@Test func deepNestingIsSyntaxErrorNotCrash() throws {
+    let parens = String(repeating: "(", count: 20_000) + "1" + String(repeating: ")", count: 20_000)
+    #expect(throws: CalcError.syntax) { try Engine.evaluate(parens) }
+    let minuses = String(repeating: "−", count: 300_000) + "1"
+    #expect(throws: CalcError.syntax) { try Engine.evaluate(minuses) }
+    let fine = String(repeating: "(", count: 50) + "1" + String(repeating: ")", count: 50)
+    #expect(try Engine.evaluate(fine) == "1")
+}

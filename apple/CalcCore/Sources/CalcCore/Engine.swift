@@ -28,8 +28,12 @@ public enum Engine {
     }
 
     private struct Parser {
+        /// Nesting deeper than this is a syntax error rather than a stack overflow on pasted input.
+        static let maxDepth = 100
+
         let chars: [Character]
         var pos = 0
+        var depth = 0
 
         mutating func eat(_ c: Character) -> Bool {
             guard pos < chars.count, chars[pos] == c else { return false }
@@ -65,7 +69,13 @@ public enum Engine {
         }
 
         mutating func factor() throws(CalcError) -> (value: ExactDecimal, isPercent: Bool) {
-            if eat("−") { return (-(try factor().value), false) }
+            depth += 1
+            defer { depth -= 1 }
+            guard depth <= Self.maxDepth else { throw .syntax }
+            if eat("−") {
+                let (value, isPercent) = try factor()  // 200+−10% is 200 − 10% of 200
+                return (-value, isPercent)
+            }
             let value = try primary()
             return eat("%") ? (value.percent, true) : (value, false)
         }
