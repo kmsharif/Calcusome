@@ -98,3 +98,33 @@ extension HistoryStoreTests {
         #expect(try store.search("tax", locale: Locale(identifier: "en_US")).map(\.result) == ["120"])
     }
 }
+
+extension HistoryStoreTests {
+    @Test func deleteUnpinnedKeepsBookmarksAndNewer() throws {
+        let old = try store.add(expression: "1+1", result: "2")
+        let kept = try store.add(expression: "2+2", result: "4")
+        try store.setPinned(kept, true)
+        clock.advance()
+        let cutoff = clock.now
+        clock.advance()
+        try store.add(expression: "3+3", result: "6")
+        #expect(try store.deleteUnpinned(before: cutoff) == 1)
+        #expect(old.deletedAt != nil)
+        #expect(try store.all().map(\.result) == ["4", "6"])
+        #expect(try store.deleteUnpinned(before: cutoff) == 0)
+    }
+
+    @Test func exportCSVQuotesAndSkipsDeleted() throws {
+        let rent = try store.add(expression: "1200÷3", result: "400")
+        try store.setLabel(rent, "Rent, \"June\"")
+        try store.setPinned(rent, true)
+        let gone = try store.add(expression: "1+1", result: "2")
+        try store.delete(gone)
+        let lines = try store.exportCSV().components(separatedBy: "\r\n")
+        #expect(lines == [
+            "date,label,expression,result,bookmarked",
+            "1970-01-12T13:46:40Z,\"Rent, \"\"June\"\"\",1200÷3,400,yes",
+            "",
+        ])
+    }
+}

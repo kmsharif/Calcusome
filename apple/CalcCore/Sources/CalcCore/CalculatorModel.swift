@@ -50,7 +50,6 @@ public enum Key: Hashable, Sendable {
     public private(set) var expression = ""
     public private(set) var result: String?
     public private(set) var error: CalcError?
-    public private(set) var recent: [HistoryEntry] = []
 
     @ObservationIgnored private let store: HistoryStore
     @ObservationIgnored private let locale: Locale
@@ -59,7 +58,6 @@ public enum Key: Hashable, Sendable {
     public init(store: HistoryStore, locale: Locale = .current) {
         self.store = store
         self.locale = locale
-        refreshRecent()
     }
 
     public func press(_ key: Key) {
@@ -92,11 +90,13 @@ public enum Key: Hashable, Sendable {
         error = nil
     }
 
-    /// Chip tap: append a past result, or start from it right after "=".
-    public func reuse(_ entry: HistoryEntry) {
+    /// Chip tap: append a past result (or its expression), or start from it right after "=".
+    /// An expression joining existing input is parenthesised so it keeps its meaning.
+    public func reuse(_ entry: HistoryEntry, expression useExpression: Bool = false) {
         startEditing()
         if let last = expression.last, last.isNumber || ".)%".contains(last) { expression.append("×") }
-        expression += Self.asExpression(entry.result)
+        let text = useExpression ? entry.expression : Self.asExpression(entry.result)
+        expression += useExpression && !expression.isEmpty ? "(\(text))" : text
         error = nil
     }
 
@@ -107,7 +107,6 @@ public enum Key: Hashable, Sendable {
             guard expression != lastSaved, !isLoneNumber else { return }
             guard (try? store.add(expression: expression, result: value)) != nil else { return }
             lastSaved = expression
-            refreshRecent()
         } catch {
             self.error = error
         }
@@ -161,8 +160,10 @@ public enum Key: Hashable, Sendable {
         }
     }
 
-    public func refreshRecent() {
-        recent = (try? store.recent(limit: 8)) ?? []
+    /// Newest results for the chips; reading `revision` keeps every window in step with the store.
+    public var recent: [HistoryEntry] {
+        _ = store.revision
+        return (try? store.recent(limit: 8)) ?? []
     }
 
     /// Canonical results use ASCII "-"; expressions use "−".

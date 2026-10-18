@@ -55,6 +55,7 @@ func spec(_ c: SpecCase) throws {
     let de = Locale(identifier: "de_DE"), en = Locale(identifier: "en_US")
     #expect(InputNormalizer.display(result: "1234.5", locale: de) == "1.234,5")
     #expect(InputNormalizer.display(result: "1234.5", locale: en) == "1,234.5")
+    #expect(InputNormalizer.display(result: "1234.5", locale: en, grouping: false) == "1234.5")
     #expect(InputNormalizer.display(result: "0.3333333333333333333333333333333333", locale: en)
             == "0.3333333333333333333333333333333333")
     #expect(InputNormalizer.display(expression: "1.5×2", locale: de) == "1,5×2")

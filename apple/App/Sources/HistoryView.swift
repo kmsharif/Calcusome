@@ -1,5 +1,6 @@
 import CalcCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct HistoryView: View {
     let store: HistoryStore
@@ -9,6 +10,8 @@ struct HistoryView: View {
     @State private var query = ""
     @State private var labelling: HistoryEntry?
     @State private var labelText = ""
+    @State private var csv: CSVFile?
+    @State private var clearing = false
 
     var body: some View {
         List {
@@ -26,7 +29,14 @@ struct HistoryView: View {
                                        systemImage: "clock.arrow.circlepath")
             }
         }
-        .task(id: model.recent.map(\.id)) { reload() }
+        .toolbar {
+            Menu("History Tools", systemImage: "ellipsis.circle") {
+                Button("Export…", systemImage: "square.and.arrow.up") { csv = try? CSVFile(store: store) }
+                Button("Clear History…", systemImage: "trash", role: .destructive) { clearing = true }
+            }
+        }
+        .historyTools(store: store, csv: $csv, clearing: $clearing)
+        .task(id: store.revision) { reload() }
         .onChange(of: query) { reload() }
         .alert("Label", isPresented: Binding(get: { labelling != nil }, set: { if !$0 { labelling = nil } }),
                presenting: labelling) { entry in
@@ -37,19 +47,25 @@ struct HistoryView: View {
     }
 
     private func row(_ entry: HistoryEntry) -> some View {
-        Button { model.reuse(entry) } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                if let label = entry.label {
-                    Text(label).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 2) {
+            Button { model.reuse(entry) } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    if let label = entry.label {
+                        Text(label).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    }
+                    Text(InputNormalizer.display(result: entry.result, locale: locale))
+                        .font(.title2.weight(.bold).monospacedDigit())
+                        .lineLimit(1).minimumScaleFactor(0.5)
                 }
-                Text(InputNormalizer.display(result: entry.result, locale: locale))
-                    .font(.title2.weight(.bold).monospacedDigit())
-                    .lineLimit(1).minimumScaleFactor(0.5)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(.rect)
+            }
+            Button { model.reuse(entry, expression: true) } label: {
                 Text(InputNormalizer.display(expression: entry.expression, locale: locale))
                     .font(.callout.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(.rect)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .contextMenu { actions(entry) }
@@ -59,15 +75,16 @@ struct HistoryView: View {
     @ViewBuilder private func actions(_ entry: HistoryEntry) -> some View {
         Button(role: .destructive) { mutate { try store.delete(entry) } } label: { Label("Delete", systemImage: "trash") }
         Button { mutate { try store.setPinned(entry, !entry.pinned) } } label: {
-            Label(entry.pinned ? "Unpin" : "Pin", systemImage: entry.pinned ? "pin.slash" : "pin")
+            Label(entry.pinned ? "Remove Bookmark" : "Bookmark", systemImage: entry.pinned ? "bookmark.slash" : "bookmark")
+        }
+        Button { Clipboard.copy(InputNormalizer.display(result: entry.result, locale: locale)) } label: {
+            Label("Copy Result", systemImage: "doc.on.doc")
         }
         Button { labelText = entry.label ?? ""; labelling = entry } label: { Label("Label…", systemImage: "tag") }
     }
 
     private func mutate(_ change: () throws -> Void) {
-        try? change()
-        model.refreshRecent()
-        reload()
+        try? change()  // the store's revision bump reloads every window
     }
 
     private func reload() {
@@ -78,7 +95,7 @@ struct HistoryView: View {
         let calendar = Calendar.current
         var result: [(title: String, entries: [HistoryEntry])] = []
         let pinned = entries.filter(\.pinned)
-        if !pinned.isEmpty { result.append(("Pinned", pinned)) }
+        if !pinned.isEmpty { result.append(("Bookmarked", pinned)) }
         for entry in entries where !entry.pinned {
             let title = calendar.isDateInToday(entry.createdAt) ? "Today"
                 : calendar.isDateInYesterday(entry.createdAt) ? "Yesterday"
@@ -87,5 +104,30 @@ struct HistoryView: View {
             else { result.append((title, [entry])) }
         }
         return result
+    }
+}
+
+/// History as a `.csv` file for `fileExporter`.
+struct CSVFile: Transferable {
+    let text: String
+
+    @MainActor init(store: HistoryStore) throws { text = try store.exportCSV() }
+
+    static var transferRepresentation: some TransferRepresentation {
+        DataRepresentation(exportedContentType: .commaSeparatedText) { Data($0.text.utf8) }
+    }
+}
+
+extension View {
+    /// Export and Clear History presentation, shared by the history toolbar and Settings.
+    func historyTools(store: HistoryStore, csv: Binding<CSVFile?>, clearing: Binding<Bool>) -> some View {
+        fileExporter(isPresented: Binding(get: { csv.wrappedValue != nil }, set: { if !$0 { csv.wrappedValue = nil } }),
+                     item: csv.wrappedValue, contentTypes: [.commaSeparatedText],
+                     defaultFilename: "Calcusome History") { _ in }
+        .confirmationDialog("Clear history?", isPresented: clearing, titleVisibility: .visible) {
+            Button("Clear History", role: .destructive) { try? store.deleteUnpinned(before: .now) }
+        } message: {
+            Text("Bookmarked calculations are kept.")
+        }
     }
 }

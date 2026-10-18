@@ -57,7 +57,7 @@ struct KeypadView: View {
     private func button(_ spec: Spec) -> some View {
         Button { model.press(spec.key) } label: {
             Text(spec.title)
-                .font(.system(size: 30, weight: .medium, design: .rounded))
+                .font(theme.keyFont)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .foregroundStyle(theme.keyText)
                 .background(color(spec.style), in: .rect(cornerRadius: theme.keyCornerRadius))

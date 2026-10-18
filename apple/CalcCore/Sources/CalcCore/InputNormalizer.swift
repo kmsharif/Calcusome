@@ -20,9 +20,10 @@ public enum InputNormalizer {
         return String(s.map { operatorAliases[$0] ?? $0 })
     }
 
-    public static func display(result canonical: String, locale: Locale) -> String {
+    public static func display(result canonical: String, locale: Locale, grouping: Bool = true) -> String {
         guard let d = Decimal(string: canonical, locale: Locale(identifier: "en_US_POSIX")) else { return canonical }
-        return d.formatted(.number.locale(locale).precision(.significantDigits(1...Engine.significantDigits)))
+        return d.formatted(.number.locale(locale).precision(.significantDigits(1...Engine.significantDigits))
+            .grouping(grouping ? .automatic : .never))
     }
 
     public static func display(expression canonical: String, locale: Locale) -> String {

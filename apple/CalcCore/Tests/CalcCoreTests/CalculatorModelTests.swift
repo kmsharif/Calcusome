@@ -112,6 +112,16 @@ import Testing
         #expect(model.expression == "4")
     }
 
+    @Test func reuseExpression() throws {
+        press(.digit(2), .add, .digit(2), .equals)
+        let entry = try #require(model.recent.first)
+        model.reuse(entry, expression: true)
+        #expect(model.expression == "2+2")
+        press(.multiply)
+        model.reuse(entry, expression: true)
+        #expect(model.expression == "2+2×(2+2)")
+    }
+
     @Test func recentRefreshes() {
         press(.digit(2), .add, .digit(2), .equals)
         #expect(model.recent.first?.result == "4")
@@ -211,5 +221,14 @@ extension CalculatorModelTests {
         press(.clear, .digit(7), .negate, .equals)
         #expect(model.result == "-7")
         #expect(try store.all().isEmpty)
+    }
+}
+
+extension CalculatorModelTests {
+    @Test func windowsShareRecent() {
+        let other = CalculatorModel(store: store, locale: Locale(identifier: "en_US"))
+        press(.digit(2), .add, .digit(2), .equals)
+        #expect(other.recent.first?.result == "4")
+        #expect(other.expression == "")  // input stays per window
     }
 }

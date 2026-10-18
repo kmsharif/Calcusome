@@ -1,8 +1,12 @@
 import Foundation
+import Observation
 import SwiftData
 
 /// Local history. Deletes are tombstones so they can reach other devices once sync lands.
-@MainActor public final class HistoryStore {
+@MainActor @Observable public final class HistoryStore {
+    /// Bumped on every save, so views in every window can refresh.
+    public private(set) var revision = 0
+
     let context: ModelContext
     private let container: ModelContainer  // the context traps if its container is released
     private let deviceID: String
@@ -24,7 +28,7 @@ import SwiftData
     public func add(expression: String, result: String) throws -> HistoryEntry {
         let entry = HistoryEntry(deviceID: deviceID, expression: expression, result: result, at: now())
         context.insert(entry)
-        try context.save()
+        try save()
         return entry
     }
 
@@ -65,9 +69,42 @@ import SwiftData
         try touch(entry)
     }
 
+    /// Tombstones live, unbookmarked entries created before `cutoff`. Clear History passes now.
+    @discardableResult
+    public func deleteUnpinned(before cutoff: Date) throws -> Int {
+        let old = try context.fetch(live()).filter { !$0.pinned && $0.createdAt < cutoff }
+        guard !old.isEmpty else { return 0 }
+        let stamp = now()
+        for entry in old {
+            entry.deletedAt = stamp
+            entry.updatedAt = stamp
+        }
+        try save()
+        return old.count
+    }
+
+    /// Live entries as RFC 4180 CSV, newest first.
+    public func exportCSV() throws -> String {
+        let dates = ISO8601DateFormatter()
+        let rows = try context.fetch(live()).map { e in
+            [dates.string(from: e.createdAt), e.label ?? "", e.expression, e.result, e.pinned ? "yes" : "no"]
+                .map(Self.csvField).joined(separator: ",")
+        }
+        return (["date,label,expression,result,bookmarked"] + rows).joined(separator: "\r\n") + "\r\n"
+    }
+
+    private static func csvField(_ s: String) -> String {
+        s.contains(where: { ",\"\r\n".contains($0) }) ? "\"" + s.replacingOccurrences(of: "\"", with: "\"\"") + "\"" : s
+    }
+
     private func touch(_ entry: HistoryEntry) throws {
         entry.updatedAt = now()
+        try save()
+    }
+
+    private func save() throws {
         try context.save()
+        revision += 1
     }
 
     private func live() -> FetchDescriptor<HistoryEntry> {
