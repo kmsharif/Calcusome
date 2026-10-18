@@ -1,5 +1,5 @@
 begin;
-select plan(15);
+select plan(21);
 
 insert into auth.users (id, instance_id, aud, role, email) values
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'a@test.dev'),
@@ -78,10 +78,39 @@ select throws_ok($$
   values ('33333333-3333-3333-3333-333333333333', 'dev-1', repeat('1', 1001), '1', now(), now())
 $$, '23514', null, 'long expression rejected');
 
+-- stale incoming tombstone older than the stored tombstone: earlier deleted_at wins
+insert into public.history_entries (id, device_id, expression, result, label, created_at, updated_at, deleted_at)
+values ('44444444-4444-4444-4444-444444444444', 'dev-1', '3+3', '6', 'kept',
+        '2026-01-01 00:00:00+00', '2026-01-01 00:00:10+00', '2026-01-01 00:00:50+00');
+update public.history_entries
+   set label = 'stale', updated_at = '2026-01-01 00:00:05+00', deleted_at = '2026-01-01 00:00:40+00'
+ where id = '44444444-4444-4444-4444-444444444444';
+select ok((select deleted_at = '2026-01-01 00:00:40+00'::timestamptz from public.history_entries
+            where id = '44444444-4444-4444-4444-444444444444'),
+          'stale earlier tombstone: deleted_at becomes the earlier value');
+select ok((select label = 'kept' and updated_at = '2026-01-01 00:00:10+00'::timestamptz from public.history_entries
+            where id = '44444444-4444-4444-4444-444444444444'),
+          'stale earlier tombstone: label and updated_at unchanged');
+-- stale incoming tombstone later than the stored one is ignored
+update public.history_entries
+   set updated_at = '2026-01-01 00:00:05+00', deleted_at = '2026-01-01 00:00:45+00'
+ where id = '44444444-4444-4444-4444-444444444444';
+select ok((select deleted_at = '2026-01-01 00:00:40+00'::timestamptz from public.history_entries
+            where id = '44444444-4444-4444-4444-444444444444'),
+          'stale later tombstone ignored');
+
+-- authenticated cannot hard-delete rows
+select throws_ok($$ delete from public.history_entries where id = '11111111-1111-1111-1111-111111111111' $$,
+                 '42501', null, 'authenticated DELETE denied');
+select is((select count(*) from public.history_entries where id = '11111111-1111-1111-1111-111111111111'), 1::bigint,
+          'row still exists after denied DELETE');
+
 -- anon cannot delete accounts
 set local role anon;
 set local request.jwt.claims = '{}';
 select throws_ok($$ select public.delete_my_account() $$, '42501', null, 'anon cannot delete accounts');
+
+select throws_ok($$ select count(*) from public.history_entries $$, '42501', null, 'anon has no table access');
 
 -- delete_my_account removes user and rows
 set local role authenticated;

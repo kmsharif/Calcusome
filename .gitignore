@@ -6,3 +6,4 @@ DerivedData/
 .swiftpm/
 supabase/.temp/
 supabase/.branches/
+supabase/.env

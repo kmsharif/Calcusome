@@ -19,6 +19,10 @@ create table public.history_entries (
 
 create index history_entries_user_synced_idx on public.history_entries (user_id, synced_at);
 
+revoke all on public.history_entries from anon;
+revoke delete, truncate, trigger, references on public.history_entries from authenticated;
+grant select, insert, update on public.history_entries to authenticated;
+
 alter table public.history_entries enable row level security;
 
 create policy history_select on public.history_entries for select
@@ -36,15 +40,14 @@ create function public.history_merge() returns trigger language plpgsql as $$
 begin
   if tg_op = 'UPDATE' then
     new.user_id := old.user_id; new.device_id := old.device_id; new.created_at := old.created_at;
+    new.deleted_at := least(old.deleted_at, new.deleted_at);  -- least() skips nulls
     if new.updated_at <= old.updated_at then
-      if new.deleted_at is null or old.deleted_at is not null then
-        return null;  -- stale edit: skip the row (no WAL write, no Realtime event)
+      if new.deleted_at is not distinct from old.deleted_at then
+        return null;  -- stale edit, nothing to take: skip the row (no WAL write, no Realtime event)
       end if;
-      -- stale edit carrying a delete: keep the newer content, take the tombstone
+      -- stale edit carrying an earlier tombstone: keep the newer content, take the tombstone
       new.expression := old.expression; new.result := old.result; new.label := old.label;
       new.pinned := old.pinned; new.tape_id := old.tape_id; new.updated_at := old.updated_at;
-    else
-      new.deleted_at := least(old.deleted_at, new.deleted_at);  -- least() skips nulls
     end if;
   end if;
   new.synced_at := clock_timestamp();
