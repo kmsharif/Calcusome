@@ -71,3 +71,20 @@ public struct RemoteEntry: Codable, Sendable, Equatable {
         return m
     }
 }
+
+public extension RemoteEntry {
+    // These mirror the check constraints in supabase/migrations/20261019000000_history.sql. `char_length` counts
+    // code points, so compare `unicodeScalars.count`, not `count`.
+    static let maxExpression = 1000
+    static let maxResult = 200
+    static let maxLabel = 200
+    static let maxDeviceID = 64
+}
+
+extension HistoryEntry {
+    /// False if the server would reject the row.
+    var fitsServer: Bool {
+        expression.unicodeScalars.count <= RemoteEntry.maxExpression && result.unicodeScalars.count <= RemoteEntry.maxResult
+            && (label?.unicodeScalars.count ?? 0) <= RemoteEntry.maxLabel && deviceID.unicodeScalars.count <= RemoteEntry.maxDeviceID
+    }
+}

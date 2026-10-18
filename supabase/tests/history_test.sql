@@ -1,5 +1,5 @@
 begin;
-select plan(21);
+select plan(22);
 
 insert into auth.users (id, instance_id, aud, role, email) values
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'a@test.dev'),
@@ -71,6 +71,14 @@ select ok((select updated_at = '2026-01-01 00:00:40+00'
               and user_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
            from public.history_entries),
           'identity columns immutable');
+
+-- id is pinned too: a newer update that sets a different id keeps the original row
+update public.history_entries
+   set id = '55555555-5555-5555-5555-555555555555', updated_at = '2026-01-01 00:00:45+00'
+ where id = '11111111-1111-1111-1111-111111111111';
+select ok((select count(*) = 1 and bool_and(id = '11111111-1111-1111-1111-111111111111' and updated_at = '2026-01-01 00:00:45+00')
+           from public.history_entries),
+          'id immutable');
 
 -- long expression rejected
 select throws_ok($$

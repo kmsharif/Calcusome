@@ -44,29 +44,14 @@ import Testing
         clock.now = Date(timeIntervalSince1970: 1_000_000.123456)
         let e = try store.add(expression: "1+1", result: "2")
         let original = RemoteEntry(e)
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .custom { date, enc in
-            let f = ISO8601DateFormatter()
-            f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            var c = enc.singleValueContainer()
-            try c.encode(f.string(from: date))
-        }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom { dec in
-            let f = ISO8601DateFormatter()
-            f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            let s = try dec.singleValueContainer().decode(String.self)
-            guard let d = f.date(from: s) else { throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: s)) }
-            return d
-        }
-        let data = try encoder.encode(original)
+        let data = try Wire.encoder.encode(original)
         let json = String(decoding: data, as: UTF8.self)
         #expect(json.contains("\"user_id\""))
         #expect(json.contains("\"label\":null"))
         #expect(json.contains("\"tape_id\":null"))
         #expect(json.contains("\"deleted_at\":null"))
         #expect(!json.contains("synced_at"))
-        #expect(try decoder.decode(RemoteEntry.self, from: data) == original)
+        #expect(try Wire.decoder.decode(RemoteEntry.self, from: data) == original)
     }
 
     @Test func mergeNewerWins() throws {
@@ -173,10 +158,11 @@ import Testing
         clock.now = t2
         let e = try store.add(expression: "1+1", result: "2")
         try store.setLabel(e, "local")
+        let stamp = e.updatedAt
         let r = remote(e) { $0.label = "stale"; $0.updatedAt = t1 }
         try store.apply([r])
         #expect(e.label == "local")
-        #expect(e.updatedAt == t2)
+        #expect(e.updatedAt == stamp)
         #expect(e.needsPush)
     }
 
@@ -246,7 +232,7 @@ import Testing
         try store.add(expression: "1+1", result: "2")
         store.userID = v
         let kept = try store.add(expression: "2+2", result: "4")
-        try store.purge(userID: u)
+        try store.purge(userID: u, keepUnsynced: false)
         #expect(store.userID == nil)
         let rest = try rawEntries()
         #expect(rest.count == 2)
@@ -261,5 +247,53 @@ import Testing
         store.userID = u
         try store.add(expression: "2+2", result: "4")
         #expect(try store.pendingCount() == 1)
+    }
+
+    @Test func purgeKeepsUnsyncedWhenAsked() throws {
+        store.userID = u
+        let synced = try store.add(expression: "1+1", result: "2")
+        let unsynced = try store.add(expression: "2+2", result: "4")
+        try store.markPushed([RemoteEntry(synced)])
+        try store.purge(userID: u, keepUnsynced: true)
+        let rest = try rawEntries()
+        #expect(rest.map(\.id) == [unsynced.id])
+        #expect(unsynced.userID == nil)
+        #expect(unsynced.needsPush)
+    }
+
+    @Test func purgeDiscardsWhenNotAsked() throws {
+        store.userID = u
+        let synced = try store.add(expression: "1+1", result: "2")
+        try store.add(expression: "2+2", result: "4")
+        try store.markPushed([RemoteEntry(synced)])
+        try store.purge(userID: u, keepUnsynced: false)
+        #expect(try rawEntries().isEmpty)
+    }
+
+    @Test func overLimitRowsStayLocal() throws {
+        store.userID = u
+        let ok = try store.add(expression: "1+1", result: "2")
+        try store.add(expression: String(repeating: "1", count: 1001), result: "1")
+        #expect(try store.pendingPush(limit: 10).map(\.id) == [ok.id])
+        #expect(try store.pendingCount() == 1)
+    }
+
+    @Test func labelCappedAt200() throws {
+        let e = try store.add(expression: "1+1", result: "2")
+        try store.setLabel(e, String(repeating: "a", count: 250))
+        #expect(e.label?.count == 200)
+        // The server counts code points, not characters: a 5-scalar family emoji must not overflow it.
+        try store.setLabel(e, String(repeating: "👨‍👩‍👧", count: 50))
+        #expect((e.label?.unicodeScalars.count ?? 0) <= 200)
+        #expect(e.label?.last == "👨‍👩‍👧")
+    }
+
+    @Test func editAfterNewerRemoteStillWins() throws {
+        store.userID = u
+        let e = try store.add(expression: "1+1", result: "2")
+        let r = remote(e) { $0.updatedAt = clock.now + 10 }
+        try store.apply([r])
+        try store.setPinned(e, true)
+        #expect(e.updatedAt > r.updatedAt)
     }
 }

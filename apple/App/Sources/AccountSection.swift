@@ -38,7 +38,9 @@ struct AccountSection: View {
                             titleVisibility: .visible) {
             Button("Sign Out Anyway", role: .destructive) { signOut(discardingUnsynced: true) }
         } message: {
-            Text("\(unsynced ?? 0) changes on this device haven't synced and will be lost.")
+            let n = unsynced ?? 0
+            Text(n == 1 ? "1 change on this device hasn't synced and will be lost."
+                        : "\(n) changes on this device haven't synced and will be lost.")
         }
         .confirmationDialog("Delete your account?", isPresented: $deleting, titleVisibility: .visible) {
             Button("Delete Account", role: .destructive) { run("Couldn't delete account") { try await account.deleteAccount() } }
@@ -60,7 +62,7 @@ struct AccountSection: View {
             if let date = account.sync?.lastSynced {
                 Text("Synced \(date, format: .relative(presentation: .named))")
             } else {
-                Text("Synced")
+                Text("Not synced yet")
             }
         }
         if let n = try? store.pendingCount(), n > 0 { line = line + Text(" · \(n) waiting") }

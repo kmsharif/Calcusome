@@ -44,7 +44,8 @@ enum AccountError: LocalizedError {
                 case .initialSession, .signedIn:
                     if let session { await self?.didSignIn(session.user) }
                 case .signedOut:
-                    await self?.tearDown()
+                    // Not asked for (e.g. the session expired for good): keep what hasn't synced.
+                    await self?.tearDown(keepUnsynced: true)
                 default:
                     break
                 }
@@ -87,7 +88,7 @@ enum AccountError: LocalizedError {
     private func didSignIn(_ user: User) async {
         if case .signedIn(_, let current) = state {
             if current == user.id { return }  // `.signedIn` repeats the initial session
-            await tearDown()
+            await tearDown(keepUnsynced: false)  // kept rows would be adopted into the new account right below
         }
         try? store.adopt(userID: user.id)  // sets userID before saving; a failed save is retried by the next one
         let sync = SyncEngine(store: store, remote: SupabaseHistoryRemote(client: client), cursorKey: Self.cursorKey(user.id))
@@ -118,20 +119,21 @@ enum AccountError: LocalizedError {
         await sync?.sync()
         let pending = try store.pendingCount()
         if !discardingUnsynced, pending > 0 { throw AccountError.unsynced(pending) }
+        // Tear down first: the `.signedOut` event the SDK emits would otherwise get there first and keep the rows.
+        await tearDown(keepUnsynced: !discardingUnsynced)
         // Local scope: global would revoke every device's session and purge their unsynced edits unasked.
         // The SDK drops the local session before calling the server, so a failed revoke still signs out here.
         try? await client.auth.signOut(scope: .local)
-        await tearDown()
     }
 
     func deleteAccount() async throws {
         try await client.rpc("delete_my_account").execute()
+        await tearDown(keepUnsynced: false)
         try? await client.auth.signOut()  // the user is gone, so the server call fails
-        await tearDown()
     }
 
-    /// Idempotent: the `.signedOut` event follows the app's own `signOut()`.
-    private func tearDown() async {
+    /// Idempotent, and the first call wins: the `.signedOut` event follows the app's own sign-out.
+    private func tearDown(keepUnsynced: Bool) async {
         guard case .signedIn(_, let userID) = state else { return }
         state = .signedOut
         sync?.invalidate()  // first: a run in flight must not write the cursor or rows back after the purge below
@@ -139,7 +141,7 @@ enum AccountError: LocalizedError {
         realtime?.cancel()
         realtime = nil
         store.onLocalChange = nil
-        try? store.purge(userID: userID)
+        try? store.purge(userID: userID, keepUnsynced: keepUnsynced)
         UserDefaults.standard.removeObject(forKey: Self.cursorKey(userID))
         if let channel {
             self.channel = nil

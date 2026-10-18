@@ -39,7 +39,7 @@ alter publication supabase_realtime add table public.history_entries;
 create function public.history_merge() returns trigger language plpgsql as $$
 begin
   if tg_op = 'UPDATE' then
-    new.user_id := old.user_id; new.device_id := old.device_id; new.created_at := old.created_at;
+    new.id := old.id; new.user_id := old.user_id; new.device_id := old.device_id; new.created_at := old.created_at;
     new.deleted_at := least(old.deleted_at, new.deleted_at);  -- least() skips nulls
     if new.updated_at <= old.updated_at then
       if new.deleted_at is not distinct from old.deleted_at then

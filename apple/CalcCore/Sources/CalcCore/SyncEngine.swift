@@ -74,8 +74,11 @@ public protocol HistoryRemote: Sendable {
         do {
             repeat {
                 rerun = false
-                try await pushPending()
+                // A failed push still pulls: other devices' rows shouldn't wait on this one's.
+                var pushError: Error?
+                do { try await pushPending() } catch let e as Invalidated { throw e } catch { pushError = error }
                 try await pullNewer()
+                if let pushError { throw pushError }
             } while rerun
             status = .idle
             lastSynced = .now

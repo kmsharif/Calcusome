@@ -132,9 +132,13 @@ iPadOS can't install unsigned apps, so the app has to be signed with your own Ap
 
 Apps signed with a free Apple ID expire after 7 days. Run from Xcode again to refresh it.
 
+### Accounts & sync
+
+Sign-in and history sync need a Supabase backend. Until a hosted project is set up, `apple/App/Sources/Sync/SupabaseConfig.swift` points at a local stack: run `npx -y supabase start` from the repo root (Google sign-in also needs `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` set for real Google OAuth credentials). Without a backend, the calculator and history work as before, on this device only.
+
 ### Sign in with Apple (optional)
 
-Sign in with Apple only works with a paid Apple Developer team, so it's off by default. To turn it on, copy `apple/App/Signing.local.xcconfig.example` to `apple/App/Signing.local.xcconfig` and replace `YOUR_TEAM_ID` with your team ID. That file is git-ignored. Without it, Google sign-in still works.
+Sign in with Apple only works with a paid Apple Developer team, so it's off by default. To turn it on, copy `apple/App/Signing.local.xcconfig.example` to `apple/App/Signing.local.xcconfig` and replace `YOUR_TEAM_ID` with your team ID. That file is git-ignored. Without it, the Apple button can't sign you in; use Google instead.
 
 ## Development
 

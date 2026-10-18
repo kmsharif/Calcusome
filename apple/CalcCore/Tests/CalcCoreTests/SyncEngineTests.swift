@@ -4,6 +4,43 @@ import Testing
 
 struct Boom: Error {}
 
+/// The app's wire format (`JSONEncoder.history`/`JSONDecoder.history`): ISO 8601 with milliseconds.
+enum Wire {
+    static let encoder: JSONEncoder = {
+        let e = JSONEncoder()
+        e.dateEncodingStrategy = .custom { date, enc in
+            var c = enc.singleValueContainer()
+            try c.encode(formatter().string(from: date))
+        }
+        return e
+    }()
+
+    static let decoder: JSONDecoder = {
+        let d = JSONDecoder()
+        d.dateDecodingStrategy = .custom { dec in
+            let s = try dec.singleValueContainer().decode(String.self)
+            guard let date = formatter().date(from: s) else { throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: s)) }
+            return date
+        }
+        return d
+    }()
+
+    private static func formatter() -> ISO8601DateFormatter {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }
+
+    /// `synced_at` is never encoded, so it is carried over as the server would send it.
+    static func roundTrip(_ rows: [RemoteEntry]) throws -> [RemoteEntry] {
+        try rows.map { r in
+            var w = try decoder.decode(RemoteEntry.self, from: encoder.encode(r))
+            w.syncedAt = r.syncedAt
+            return w
+        }
+    }
+}
+
 /// In-memory stand-in for the Supabase table, including the server's merge trigger.
 actor FakeRemote: HistoryRemote {
     private var rows: [UUID: RemoteEntry] = [:]
@@ -13,6 +50,7 @@ actor FakeRemote: HistoryRemote {
     private var onPush: (@Sendable () async -> Void)?
     private var onPull: (@Sendable () async -> Void)?
     private var inFlight = 0
+    private var wire = false
 
     private(set) var pushCount = 0
     private(set) var maxInFlight = 0
@@ -23,6 +61,8 @@ actor FakeRemote: HistoryRemote {
     func setOnPush(_ f: (@Sendable () async -> Void)?) { onPush = f }
     func setOnPull(_ f: (@Sendable () async -> Void)?) { onPull = f }
     func rowCount() -> Int { rows.count }
+    /// Sends every pushed and pulled row through the app's JSON coder, as the real remote does.
+    func setWire(_ on: Bool) { wire = on }
 
     private func stamp() -> Date {
         counter += 1
@@ -39,7 +79,7 @@ actor FakeRemote: HistoryRemote {
             failNextPush = false
             throw Boom()
         }
-        for incoming in entries {
+        for incoming in wire ? try Wire.roundTrip(entries) : entries {
             guard let stored = rows[incoming.id] else {
                 var row = incoming
                 row.syncedAt = stamp()
@@ -61,7 +101,8 @@ actor FakeRemote: HistoryRemote {
         maxInFlight = max(maxInFlight, inFlight)
         defer { inFlight -= 1 }
         let hits = rows.values.filter { r in cursor.map { r.syncedAt! >= $0 } ?? true }
-        return Array(hits.sorted { $0.syncedAt! < $1.syncedAt! }.prefix(pageLimit ?? limit))
+        let page = Array(hits.sorted { $0.syncedAt! < $1.syncedAt! }.prefix(pageLimit ?? limit))
+        return wire ? try Wire.roundTrip(page) : page
     }
 }
 
@@ -304,5 +345,31 @@ actor FakeRemote: HistoryRemote {
         #expect(await remote.pushCount == 1)
         #expect(await remote.rowCount() == 1)
         #expect(try a.store.pendingCount() == 0)
+    }
+
+    @Test func legacyRowsSettleAfterAdopt() async throws {
+        await remote.setWire(true)
+        let a = try device("A", signedIn: false)
+        // Before Phase 3 timestamps kept sub-millisecond parts.
+        let legacy = HistoryEntry(deviceID: "A", expression: "1+1", result: "2", at: Date(timeIntervalSince1970: 1_000_000.123456))
+        legacy.deletedAt = Date(timeIntervalSince1970: 1_000_000.654321)
+        a.store.context.insert(legacy)
+        try a.store.context.save()
+        try a.store.adopt(userID: u)
+        await a.engine.sync()
+        await a.engine.sync()
+        #expect(try a.store.pendingCount() == 0)
+    }
+
+    @Test func failedPushStillPulls() async throws {
+        let a = try device("A"), b = try device("B")
+        try a.store.add(expression: "1+1", result: "2")
+        await a.engine.sync()
+        try b.store.add(expression: "2+2", result: "4")
+        await remote.failNext()
+        await b.engine.sync()
+        guard case .failed = b.engine.status else { Issue.record("status \(b.engine.status)"); return }
+        #expect(try b.store.all().map(\.deviceID).sorted() == ["A", "B"])
+        #expect(try b.store.pendingCount() == 1)
     }
 }
