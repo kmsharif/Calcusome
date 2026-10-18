@@ -5,6 +5,7 @@ import SwiftUI
 @main
 struct CalcusomeApp: App {
     private let store: HistoryStore
+    private let account: Account
     private let container: ModelContainer
     #if os(macOS)
     @AppStorage(Pref.menuBar) private var showMenuBar = true
@@ -19,11 +20,13 @@ struct CalcusomeApp: App {
             fatalError("History store failed to open: \(error)")
         }
         store = HistoryStore(container: container, deviceID: DeviceID.current())
+        account = Account(store: store)
     }
 
     var body: some Scene {
         WindowGroup {
             RootView(store: store)
+                .environment(account)
         }
         .modelContainer(container)
         .defaultSize(width: 920, height: 760)
@@ -39,10 +42,12 @@ struct CalcusomeApp: App {
         #if os(macOS)
         Settings {
             SettingsView(store: store)
+                .environment(account)
         }
 
         MenuBarExtra("Calcusome", systemImage: "plus.forwardslash.minus", isInserted: $showMenuBar) {
             MenuBarCalculator(store: store)
+                .environment(account)
         }
         .menuBarExtraStyle(.window)
         #endif
@@ -59,6 +64,7 @@ struct RootView: View {
     @AppStorage(Pref.showKeypad) private var showKeypad = true
     @SceneStorage("pinned") private var pinned = false
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(Account.self) private var account
 
     init(store: HistoryStore) {
         self.store = store
@@ -108,7 +114,11 @@ struct RootView: View {
             }
         }
         #endif
-        .onChange(of: scenePhase, initial: true) { if scenePhase == .active { autoClear() } }
+        .onChange(of: scenePhase, initial: true) {
+            guard scenePhase == .active else { return }
+            autoClear()
+            account.sync?.scheduleSync(after: .zero)
+        }
         .onChange(of: autoClearDays) { autoClear() }
     }
 

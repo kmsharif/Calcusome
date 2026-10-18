@@ -6,6 +6,9 @@ options:
 packages:
   CalcCore:
     path: ../CalcCore
+  Supabase:
+    url: https://github.com/supabase/supabase-swift
+    from: "2.55.4"
 targets:
   Calcusome:
     type: application
@@ -13,6 +16,12 @@ targets:
     sources: [Sources, Resources]
     dependencies:
       - package: CalcCore
+      - package: Supabase
+        product: Supabase
+    entitlements:
+      path: Calcusome.entitlements
+      properties:
+        com.apple.developer.applesignin: [Default]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.calcusome.app  # placeholder, replace before TestFlight
@@ -28,4 +37,5 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "6.0"
         CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""  # set locally: Sign in with Apple needs a real team
         "CODE_SIGN_IDENTITY[sdk=macosx*]": "-"
