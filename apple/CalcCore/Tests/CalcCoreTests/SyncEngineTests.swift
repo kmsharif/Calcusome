@@ -129,6 +129,8 @@ actor FakeRemote: HistoryRemote {
         let liveA = try live(a), liveB = try live(b)
         #expect(liveA == liveB)
         #expect(liveA.count == 3)
+        #expect(try a.store.pendingCount() == 0)
+        #expect(try b.store.pendingCount() == 0)
         let shared = try #require(liveA.first { $0.id == r.id })
         #expect(shared.pinned)
         #expect(shared.label == nil)  // B's newer edit wins the whole row
@@ -208,6 +210,41 @@ actor FakeRemote: HistoryRemote {
         #expect(try b.store.all().count == 5)
     }
 
+    @Test func pullAdvancesPastFullOverlapWindow() async throws {
+        let a = try device("A"), b = try device("B")
+        for i in 0..<5 { try a.store.add(expression: "\(i)+1", result: "\(i + 1)") }
+        await a.engine.sync()
+        await remote.setPageLimit(2)
+        await b.engine.sync()
+        #expect(try b.store.all().count == 5)
+
+        try a.store.add(expression: "9+9", result: "18")
+        await a.engine.sync()
+        await b.engine.sync()  // all 6 rows sit inside the 60s overlap, so the first pages hold only old rows
+        #expect(try b.store.all().count == 6)
+    }
+
+    @Test func syncWhileRunningWaitsForCompletion() async throws {
+        let a = try device("A")
+        try a.store.add(expression: "1+1", result: "2")
+        let store = a.store, clock = clock
+        await remote.setOnPush {
+            await MainActor.run {
+                let e = try! store.recent(limit: 1).first!
+                guard !e.pinned else { return }
+                clock.advance()
+                try! store.setPinned(e, true)  // edit mid-push: only a second round can push it
+            }
+        }
+        let engine = a.engine
+        let first = Task { await engine.sync() }
+        while engine.status != .syncing { await Task.yield() }
+        await engine.sync()
+        #expect(try a.store.pendingCount() == 0)
+        #expect(engine.status == .idle)
+        await first.value
+    }
+
     @Test func cursorPersistsAcrossEngines() async throws {
         let a = try device("A"), b = try device("B")
         try a.store.add(expression: "1+1", result: "2")
@@ -216,9 +253,10 @@ actor FakeRemote: HistoryRemote {
         let saved = b.defaults.double(forKey: "cursor")
         #expect(saved > 0)
 
+        let before = await remote.pullFroms.count
         let b2 = SyncEngine(store: b.store, remote: remote, cursorKey: "cursor", defaults: b.defaults)
         await b2.sync()
-        #expect(await remote.pullFroms.last == Date(timeIntervalSince1970: saved - 60))
+        #expect(await remote.pullFroms[before] == Date(timeIntervalSince1970: saved - 60))
     }
 
     @Test func secondSyncPushesNothing() async throws {

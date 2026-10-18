@@ -19,7 +19,7 @@ public protocol HistoryRemote: Sendable {
     @ObservationIgnored private let remote: any HistoryRemote
     @ObservationIgnored private let cursorKey: String
     @ObservationIgnored private let defaults: UserDefaults
-    @ObservationIgnored private var running = false
+    @ObservationIgnored private var running: Task<Void, Never>?
     @ObservationIgnored private var rerun = false
     @ObservationIgnored private var scheduled: Task<Void, Never>?
 
@@ -39,20 +39,26 @@ public protocol HistoryRemote: Sendable {
         scheduled?.cancel()
         scheduled = Task { [weak self] in
             do { try await Task.sleep(for: delay) } catch { return }
-            guard let self else { return }
-            scheduled = nil  // a running sync must not be cancelled by a later scheduleSync
+            guard !Task.isCancelled, let self else { return }
             await sync()
         }
     }
 
-    /// Never throws; failures land in `status`. A call during a running sync asks it to go round again.
+    /// Never throws; failures land in `status`. A call during a running sync asks it to go round again and
+    /// returns only once that run (including the extra round) has finished.
     public func sync() async {
-        if running {
+        if let running {
             rerun = true
+            await running.value
             return
         }
-        running = true
-        defer { running = false }
+        // Unstructured, so cancelling a caller (e.g. a superseded debounce) never aborts the network calls.
+        let run = Task { await runRounds() }
+        running = run
+        await run.value
+    }
+
+    private func runRounds() async {
         status = .syncing
         do {
             repeat {
@@ -67,6 +73,7 @@ public protocol HistoryRemote: Sendable {
             // ponytail: fixed 30s retry, add backoff if a dead server sees request storms
             scheduleSync(after: .seconds(30))
         }
+        running = nil
     }
 
     private func pushPending() async throws {
@@ -81,14 +88,17 @@ public protocol HistoryRemote: Sendable {
     }
 
     private func pullNewer() async throws {
-        var cursor = defaults.object(forKey: cursorKey) == nil ? nil : Date(timeIntervalSince1970: defaults.double(forKey: cursorKey))
-        var from = cursor.map { $0 - Self.overlap }
+        var saved = defaults.object(forKey: cursorKey) == nil ? nil : Date(timeIntervalSince1970: defaults.double(forKey: cursorKey))
+        var from = saved.map { $0 - Self.overlap }
         while true {
             let page = try await remote.pull(from: from, limit: Self.pullPage)
             try store.apply(page)
-            guard let newest = page.compactMap(\.syncedAt).max(), newest > cursor ?? .distantPast else { return }
-            cursor = newest
-            defaults.set(newest.timeIntervalSince1970, forKey: cursorKey)
+            // Progress is measured against this request's cursor: the overlap window may hold several full pages of old rows.
+            guard let newest = page.compactMap(\.syncedAt).max(), newest > from ?? .distantPast else { return }
+            if newest > saved ?? .distantPast {
+                saved = newest
+                defaults.set(newest.timeIntervalSince1970, forKey: cursorKey)
+            }
             from = newest
         }
     }
