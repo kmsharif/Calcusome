@@ -39,6 +39,7 @@ struct CalcusomeApp: App {
         MenuBarExtra("Calcusome", systemImage: "plus.forwardslash.minus") {
             CalculatorView()
                 .environment(model)
+                .environment(\.theme, .graphite(displaySize: 44))
                 .frame(width: 300, height: 480)
         }
         .menuBarExtraStyle(.window)

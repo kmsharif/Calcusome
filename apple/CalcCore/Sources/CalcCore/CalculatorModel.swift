@@ -20,11 +20,13 @@ public enum Key: Hashable, Sendable {
         }
     }
 
-    /// Hardware keyboard input. Both "." and "," mean decimal point, so either habit works.
-    public init?(typed c: Character) {
+    /// Hardware keyboard input. "," is the decimal point only where the locale uses it;
+    /// elsewhere it's grouping and ignored, matching how pasted text is read.
+    public init?(typed c: Character, locale: Locale = .current) {
         if let d = c.wholeNumberValue, c.isASCII { self = .digit(d); return }
         switch c {
-        case ".", ",": self = .decimal
+        case ".": self = .decimal
+        case "," where locale.decimalSeparator == ",": self = .decimal
         case "+": self = .add
         case "-", "−": self = .subtract
         case "*", "x", "X", "×": self = .multiply
@@ -62,7 +64,12 @@ public enum Key: Hashable, Sendable {
         case .equals: evaluate()
         case .clear: expression = ""; result = nil; lastSaved = nil
         case .backspace: startEditing(); if !expression.isEmpty { expression.removeLast() }
-        case .negate: startEditing(); negateLastNumber()
+        case .negate:
+            if let result { expression = Self.asExpression(result); self.result = nil }  // negate the shown result
+            negateLastNumber()
+        case .decimal:
+            startEditing()
+            if !trailingNumber.contains(".") { expression.append(".") }
         default:
             guard let symbol = key.symbol else { return }
             if let result, key.isOperator {
@@ -84,6 +91,7 @@ public enum Key: Hashable, Sendable {
     /// Chip tap: append a past result, or start from it right after "=".
     public func reuse(_ entry: HistoryEntry) {
         startEditing()
+        if let last = expression.last, last.isNumber || ".)%".contains(last) { expression.append("×") }
         expression += Self.asExpression(entry.result)
         error = nil
     }
@@ -106,10 +114,13 @@ public enum Key: Hashable, Sendable {
         if result != nil { expression = ""; result = nil }
     }
 
+    private var trailingNumber: Substring {
+        expression[(expression.lastIndex { !($0.isNumber || $0 == ".") }.map(expression.index(after:)) ?? expression.startIndex)...]
+    }
+
     private func negateLastNumber() {
         let chars = Array(expression)
-        var start = chars.count
-        while start > 0, chars[start - 1].isNumber || chars[start - 1] == "." { start -= 1 }
+        let start = chars.count - trailingNumber.count
         let unaryMinus = start > 0 && chars[start - 1] == "−"
             && (start == 1 || "+−×÷(".contains(chars[start - 2]))
         if unaryMinus {

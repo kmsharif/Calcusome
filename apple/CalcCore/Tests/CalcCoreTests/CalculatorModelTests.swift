@@ -109,7 +109,6 @@ import Testing
 @Test func typedCharactersMapToKeys() {
     #expect(Key(typed: "7") == .digit(7))
     #expect(Key(typed: ".") == .decimal)
-    #expect(Key(typed: ",") == .decimal)
     #expect(Key(typed: "+") == .add)
     #expect(Key(typed: "-") == .subtract)
     #expect(Key(typed: "*") == .multiply)
@@ -121,4 +120,42 @@ import Testing
     #expect(Key(typed: "=") == .equals)
     #expect(Key(typed: "\r") == .equals)
     #expect(Key(typed: "a") == nil)
+}
+
+@Test func typedCommaFollowsLocale() {
+    #expect(Key(typed: ",", locale: Locale(identifier: "en_US")) == nil)
+    #expect(Key(typed: ",", locale: Locale(identifier: "de_DE")) == .decimal)
+    #expect(Key(typed: ".", locale: Locale(identifier: "de_DE")) == .decimal)
+}
+
+extension CalculatorModelTests {
+    @Test func reuseAfterNumberMultiplies() throws {
+        press(.digit(8), .equals, .digit(1), .digit(2))
+        model.reuse(try #require(model.recent.first))
+        #expect(model.expression == "12×8")
+    }
+
+    @Test func reuseAfterParenMultiplies() throws {
+        press(.digit(8), .equals, .openParen, .digit(2), .closeParen)
+        model.reuse(try #require(model.recent.first))
+        #expect(model.expression == "(2)×8")
+    }
+
+    @Test func negateAfterResultNegatesResult() {
+        press(.digit(5), .add, .digit(3), .equals, .negate)
+        #expect(model.expression == "−8")
+        #expect(model.result == nil)
+    }
+
+    @Test func leadingDecimalPointEvaluates() {
+        press(.decimal, .digit(5), .multiply, .digit(2), .equals)
+        #expect(model.result == "1")
+    }
+
+    @Test func secondDecimalPointIgnored() {
+        press(.digit(1), .decimal, .digit(2), .decimal, .digit(3))
+        #expect(model.expression == "1.23")
+        press(.add, .digit(4), .decimal)
+        #expect(model.expression == "1.23+4.")
+    }
 }

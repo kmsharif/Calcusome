@@ -13,8 +13,8 @@ struct Theme: Sendable {
     var equalsColor: Color
     var keyCornerRadius: CGFloat
 
-    static let graphite = Theme(
-        displayFont: .system(size: 88, weight: .bold, design: .rounded).width(.condensed),
+    static func graphite(displaySize: CGFloat = 88) -> Theme { Theme(
+        displayFont: .system(size: displaySize, weight: .bold, design: .rounded).width(.condensed),
         background: Color(white: 0.08),
         resultColor: .white,
         secondaryText: Color(white: 0.6),
@@ -24,9 +24,9 @@ struct Theme: Sendable {
         operatorColor: Color(red: 1.0, green: 0.55, blue: 0.1),
         equalsColor: Color(red: 1.0, green: 0.35, blue: 0.6),
         keyCornerRadius: 22
-    )
+    ) }
 }
 
 extension EnvironmentValues {
-    @Entry var theme: Theme = .graphite
+    @Entry var theme: Theme = .graphite()
 }

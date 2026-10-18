@@ -26,7 +26,7 @@ struct CalculatorView: View {
         .onKeyPress(.escape) { model.press(.clear); return .handled }
         .onKeyPress { press in
             guard press.modifiers.isDisjoint(with: [.command, .control]),
-                  let c = press.characters.first, let key = Key(typed: c) else { return .ignored }
+                  let c = press.characters.first, let key = Key(typed: c, locale: locale) else { return .ignored }
             model.press(key)
             return .handled
         }
@@ -49,7 +49,8 @@ struct CalculatorView: View {
                 .font(theme.displayFont.monospacedDigit())
                 .foregroundStyle(theme.resultColor)
                 .lineLimit(1)
-                .minimumScaleFactor(0.3)
+                .minimumScaleFactor(0.18)  // a grouped 34-digit result still fits the minimum window
+                .truncationMode(model.result == nil ? .head : .tail)  // keep the digits just typed visible
                 .contentTransition(reduceMotion ? .identity : .numericText())
                 .animation(reduceMotion ? nil : .snappy, value: primaryLine)
                 .accessibilityAddTraits(.updatesFrequently)

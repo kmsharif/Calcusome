@@ -28,9 +28,10 @@ struct HistoryView: View {
         }
         .task(id: model.recent.map(\.id)) { reload() }
         .onChange(of: query) { reload() }
-        .alert("Label", isPresented: Binding(get: { labelling != nil }, set: { if !$0 { labelling = nil } })) {
+        .alert("Label", isPresented: Binding(get: { labelling != nil }, set: { if !$0 { labelling = nil } }),
+               presenting: labelling) { entry in
             TextField("e.g. Rent split", text: $labelText)
-            Button("Save") { mutate { try store.setLabel(labelling!, labelText) } }
+            Button("Save") { mutate { try store.setLabel(entry, labelText) } }
             Button("Cancel", role: .cancel) {}
         }
     }
