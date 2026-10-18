@@ -108,7 +108,7 @@ enum AccountError: LocalizedError {
         }
 
         state = .signedIn(email: user.email, userID: user.id)
-        await sync.sync()
+        sync.scheduleSync(after: .zero)  // don't hold up the auth-event loop for a long first sync
     }
 
     // MARK: Sign out
@@ -118,8 +118,9 @@ enum AccountError: LocalizedError {
         await sync?.sync()
         let pending = try store.pendingCount()
         if !discardingUnsynced, pending > 0 { throw AccountError.unsynced(pending) }
+        // Local scope: global would revoke every device's session and purge their unsynced edits unasked.
         // The SDK drops the local session before calling the server, so a failed revoke still signs out here.
-        try? await client.auth.signOut()
+        try? await client.auth.signOut(scope: .local)
         await tearDown()
     }
 
@@ -133,10 +134,11 @@ enum AccountError: LocalizedError {
     private func tearDown() async {
         guard case .signedIn(_, let userID) = state else { return }
         state = .signedOut
+        sync?.invalidate()  // first: a run in flight must not write the cursor or rows back after the purge below
+        sync = nil
         realtime?.cancel()
         realtime = nil
         store.onLocalChange = nil
-        sync = nil
         try? store.purge(userID: userID)
         UserDefaults.standard.removeObject(forKey: Self.cursorKey(userID))
         if let channel {

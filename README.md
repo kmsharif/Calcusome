@@ -132,6 +132,10 @@ iPadOS can't install unsigned apps, so the app has to be signed with your own Ap
 
 Apps signed with a free Apple ID expire after 7 days. Run from Xcode again to refresh it.
 
+### Sign in with Apple (optional)
+
+Sign in with Apple only works with a paid Apple Developer team, so it's off by default. To turn it on, copy `apple/App/Signing.local.xcconfig.example` to `apple/App/Signing.local.xcconfig` and replace `YOUR_TEAM_ID` with your team ID. That file is git-ignored. Without it, Google sign-in still works.
+
 ## Development
 
 ```

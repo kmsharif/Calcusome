@@ -140,10 +140,12 @@ import SwiftData
     }
 
     /// Merges server rows into the local store with the server's rule. Rows where local wins stay (or become) dirty.
+    /// Rows of any other account (all of them while signed out) are ignored: a pull that lands after sign-out must not
+    /// bring back what `purge` removed.
     public func apply(_ remote: [RemoteEntry]) throws {
         // ponytail: one fetch of every row; index by id in the predicate if history grows past ~10k.
         var local = Dictionary(try context.fetch(FetchDescriptor<HistoryEntry>()).map { ($0.id, $0) }, uniquingKeysWith: { $1 })
-        for r in remote {
+        for r in remote where r.userID == userID {
             if let entry = local[r.id] {
                 var m = RemoteEntry.merged(existing: RemoteEntry(entry, fallbackUserID: r.userID), incoming: r)
                 m.syncedAt = r.syncedAt

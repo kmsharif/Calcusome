@@ -148,6 +148,7 @@ import Testing
     }
 
     @Test func applyInsertsUnknown() throws {
+        store.userID = u
         let r = RemoteEntry(HistoryEntry(deviceID: "other", expression: "3+3", result: "6", at: t1), fallbackUserID: u)
         try store.apply([r])
         let all = try store.all()
@@ -214,10 +215,19 @@ import Testing
     }
 
     @Test func applyBumpsRevision() throws {
+        store.userID = u
         let e = try store.add(expression: "1+1", result: "2")
         let before = store.revision
         try store.apply([remote(e)])
         #expect(store.revision == before + 1)
+    }
+
+    @Test func applyIgnoresOtherAccountRows() throws {
+        let theirs = RemoteEntry(HistoryEntry(deviceID: "other", expression: "3+3", result: "6", at: t1), fallbackUserID: v)
+        try store.apply([theirs])  // signed out: nothing applies
+        store.userID = u
+        try store.apply([theirs])
+        #expect(try rawEntries().isEmpty)
     }
 
     @Test func adoptClaimsLocalEntries() throws {

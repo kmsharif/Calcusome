@@ -11,6 +11,7 @@ actor FakeRemote: HistoryRemote {
     private var failNextPush = false
     private var pageLimit: Int?
     private var onPush: (@Sendable () async -> Void)?
+    private var onPull: (@Sendable () async -> Void)?
     private var inFlight = 0
 
     private(set) var pushCount = 0
@@ -20,6 +21,7 @@ actor FakeRemote: HistoryRemote {
     func failNext() { failNextPush = true }
     func setPageLimit(_ n: Int?) { pageLimit = n }
     func setOnPush(_ f: (@Sendable () async -> Void)?) { onPush = f }
+    func setOnPull(_ f: (@Sendable () async -> Void)?) { onPull = f }
     func rowCount() -> Int { rows.count }
 
     private func stamp() -> Date {
@@ -54,6 +56,7 @@ actor FakeRemote: HistoryRemote {
 
     func pull(from cursor: Date?, limit: Int) async throws -> [RemoteEntry] {
         pullFroms.append(cursor)
+        await onPull?()
         inFlight += 1
         maxInFlight = max(maxInFlight, inFlight)
         defer { inFlight -= 1 }
@@ -257,6 +260,26 @@ actor FakeRemote: HistoryRemote {
         let b2 = SyncEngine(store: b.store, remote: remote, cursorKey: "cursor", defaults: b.defaults)
         await b2.sync()
         #expect(await remote.pullFroms[before] == Date(timeIntervalSince1970: saved - 60))
+    }
+
+    @Test func invalidateDuringPullWritesNothing() async throws {
+        let a = try device("A"), b = try device("B")
+        try a.store.add(expression: "1+1", result: "2")
+        await a.engine.sync()
+        let engine = b.engine
+        await remote.setOnPull { await MainActor.run { engine.invalidate() } }
+        await engine.sync()
+        #expect(b.defaults.object(forKey: "cursor") == nil)
+        #expect(try b.store.all().isEmpty)
+        #expect(engine.status == .idle)  // not .failed, so no retry is scheduled
+
+        await remote.setOnPull(nil)
+        let pulls = await remote.pullFroms.count
+        engine.scheduleSync(after: .zero)
+        await engine.sync()
+        try await Task.sleep(for: .milliseconds(20))
+        #expect(await remote.pullFroms.count == pulls)
+        #expect(try b.store.all().isEmpty)
     }
 
     @Test func secondSyncPushesNothing() async throws {

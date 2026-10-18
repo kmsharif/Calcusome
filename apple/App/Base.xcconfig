@@ -1,0 +1,4 @@
+// Ad-hoc signing on the Mac, so the unsigned Release build in the README works with no team.
+MAC_SIGN_IDENTITY = -
+
+#include? "Signing.local.xcconfig"

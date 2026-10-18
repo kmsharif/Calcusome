@@ -7,3 +7,4 @@ DerivedData/
 supabase/.temp/
 supabase/.branches/
 supabase/.env
+apple/App/Signing.local.xcconfig

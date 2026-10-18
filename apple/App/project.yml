@@ -18,10 +18,9 @@ targets:
       - package: CalcCore
       - package: Supabase
         product: Supabase
-    entitlements:
-      path: Calcusome.entitlements
-      properties:
-        com.apple.developer.applesignin: [Default]
+    configFiles:  # Base.xcconfig pulls in the optional, git-ignored Signing.local.xcconfig
+      Debug: Base.xcconfig
+      Release: Base.xcconfig
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.calcusome.app  # placeholder, replace before TestFlight
@@ -37,5 +36,4 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "6.0"
         CODE_SIGN_STYLE: Automatic
-        DEVELOPMENT_TEAM: ""  # set locally: Sign in with Apple needs a real team
-        "CODE_SIGN_IDENTITY[sdk=macosx*]": "-"
+        "CODE_SIGN_IDENTITY[sdk=macosx*]": $(MAC_SIGN_IDENTITY)  # set in Base.xcconfig
