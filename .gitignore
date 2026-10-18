@@ -4,3 +4,5 @@ DerivedData/
 .DS_Store
 .superpowers/
 .swiftpm/
+supabase/.temp/
+supabase/.branches/
