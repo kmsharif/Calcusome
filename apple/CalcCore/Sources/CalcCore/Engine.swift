@@ -1,31 +1,30 @@
-import Foundation
-
 public enum CalcError: String, Error, Equatable, Sendable {
     case syntax
     case divideByZero = "divide_by_zero"
     case overflow
 }
 
-/// Evaluates canonical expressions (`500×64`, `200+10%`). Grammar:
+/// Evaluates canonical expressions (`500×64`, `200+10%`) to a canonical result. Grammar:
 ///
 ///     expr    := term (('+' | '−') term)*     a ± p%  →  a ± a×p/100
 ///     term    := factor (('×' | '÷') factor)*
 ///     factor  := '−' factor | primary '%'?    p%  →  p/100
 ///     primary := number | '(' expr ')'
+///
+/// Every literal and operation is rounded to 34 significant digits, half-even (see `ExactDecimal`).
 public enum Engine {
-    public static func evaluate(_ canonical: String) throws(CalcError) -> Decimal {
+    public static let significantDigits = ExactDecimal.precision
+
+    public static func evaluate(_ canonical: String) throws(CalcError) -> String {
         var parser = Parser(chars: Array(canonical))
         let value = try parser.expr()
         guard parser.pos == parser.chars.count else { throw .syntax }
-        return value
+        return value.canonical
     }
 
-    private static let limit = Decimal(sign: .plus, exponent: 34, significand: 1)
-
-    fileprivate static func checked(_ d: Decimal) throws(CalcError) -> Decimal {
-        let r = DecimalRounding.round34(d)
-        if abs(r) >= limit { throw .overflow }
-        return r
+    fileprivate static func checked(_ d: ExactDecimal) throws(CalcError) -> ExactDecimal {
+        if d.top >= 34 { throw .overflow }  // |d| >= 1e34
+        return d
     }
 
     private struct Parser {
@@ -38,18 +37,18 @@ public enum Engine {
             return true
         }
 
-        mutating func expr() throws(CalcError) -> Decimal {
+        mutating func expr() throws(CalcError) -> ExactDecimal {
             var value = try term().value
             while true {
-                let sign: Decimal
-                if eat("+") { sign = 1 } else if eat("−") { sign = -1 } else { return value }
+                let negate: Bool
+                if eat("+") { negate = false } else if eat("−") { negate = true } else { return value }
                 let (rhs, isPercent) = try term()
                 let delta = isPercent ? try checked(value * rhs) : rhs
-                value = try checked(value + sign * delta)
+                value = try checked(negate ? value - delta : value + delta)
             }
         }
 
-        mutating func term() throws(CalcError) -> (value: Decimal, isPercent: Bool) {
+        mutating func term() throws(CalcError) -> (value: ExactDecimal, isPercent: Bool) {
             var (value, isPercent) = try factor()
             while true {
                 if eat("×") {
@@ -65,13 +64,13 @@ public enum Engine {
             }
         }
 
-        mutating func factor() throws(CalcError) -> (value: Decimal, isPercent: Bool) {
-            if eat("−") { return (try checked(-factor().value), false) }
+        mutating func factor() throws(CalcError) -> (value: ExactDecimal, isPercent: Bool) {
+            if eat("−") { return (-(try factor().value), false) }
             let value = try primary()
-            return eat("%") ? (try checked(value / 100), true) : (value, false)
+            return eat("%") ? (value.percent, true) : (value, false)
         }
 
-        mutating func primary() throws(CalcError) -> Decimal {
+        mutating func primary() throws(CalcError) -> ExactDecimal {
             if eat("(") {
                 let value = try expr()
                 guard eat(")") else { throw .syntax }
@@ -79,12 +78,7 @@ public enum Engine {
             }
             let start = pos
             while pos < chars.count, chars[pos].isASCII, chars[pos].isNumber || chars[pos] == "." { pos += 1 }
-            let text = String(chars[start..<pos])
-            guard !text.isEmpty,
-                  text.filter({ $0 == "." }).count <= 1,
-                  text.first != ".", text.last != ".",
-                  let d = Decimal(string: text, locale: Locale(identifier: "en_US_POSIX"))
-            else { throw .syntax }
+            guard let d = ExactDecimal(literal: chars[start..<pos].map(String.init).joined()) else { throw .syntax }
             return try checked(d)
         }
     }

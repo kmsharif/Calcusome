@@ -22,7 +22,7 @@ public enum InputNormalizer {
 
     public static func display(result canonical: String, locale: Locale) -> String {
         guard let d = Decimal(string: canonical, locale: Locale(identifier: "en_US_POSIX")) else { return canonical }
-        return d.formatted(.number.locale(locale).precision(.significantDigits(1...DecimalRounding.significantDigits)))
+        return d.formatted(.number.locale(locale).precision(.significantDigits(1...Engine.significantDigits)))
     }
 
     public static func display(expression canonical: String, locale: Locale) -> String {

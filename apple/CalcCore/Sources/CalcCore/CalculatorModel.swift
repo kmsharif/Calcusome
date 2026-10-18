@@ -90,7 +90,7 @@ public enum Key: Hashable, Sendable {
 
     private func evaluate() {
         do {
-            let value = DecimalRounding.canonical(try Engine.evaluate(expression))
+            let value = try Engine.evaluate(expression)
             result = value
             guard expression != lastSaved else { return }
             _ = try? store.add(expression: expression, result: value)
