@@ -29,7 +29,13 @@ struct CalculatorView: View {
         .focusEffectDisabled()
         .focused($focused)
         .defaultFocus($focused, true)
-        .onKeyPress(.return) { model.press(.equals); return .handled }
+        .background {
+            // A window-level shortcut, so Return evaluates even when keyboard navigation
+            // has focused a chip, history row, or key (onKeyPress only sees our own focus).
+            Button("Equals") { model.press(.equals) }
+                .keyboardShortcut(.defaultAction)
+                .hidden()
+        }
         .onKeyPress(.delete) { model.press(.backspace); return .handled }
         .onKeyPress(.escape) { model.press(.clear); return .handled }
         .onKeyPress { press in
