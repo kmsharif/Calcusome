@@ -307,4 +307,55 @@ import Testing
         try store.setPinned(e, true)
         #expect(e.updatedAt > r.updatedAt)
     }
+
+    @Test func listsHideOtherAccountsRows() throws {
+        let signedOut = try store.add(expression: "0+0", result: "0")
+        store.userID = u
+        let kept = try store.add(expression: "1+1", result: "2")
+        store.userID = v
+        let mine = try store.add(expression: "2+2", result: "4")
+
+        #expect(Set(try store.recent(limit: 10).map(\.id)) == [mine.id, signedOut.id])
+        #expect(Set(try store.all().map(\.id)) == [mine.id, signedOut.id])
+        #expect(try store.search("1").isEmpty)
+        #expect(try store.search("2").map(\.id) == [mine.id])
+
+        store.userID = nil
+        #expect(try store.recent(limit: 10).map(\.id) == [signedOut.id])
+        #expect(try store.all().map(\.id) == [signedOut.id])
+        #expect(try store.search("1").isEmpty)
+        _ = kept
+    }
+
+    @Test func clearHistoryDoesNotTouchOtherAccounts() throws {
+        store.userID = u
+        let kept = try store.add(expression: "1+1", result: "2")
+        let stamp = kept.updatedAt
+        store.userID = v
+        let mine = try store.add(expression: "2+2", result: "4")
+        try store.deleteUnpinned(before: .distantFuture)
+        #expect(mine.deletedAt != nil)
+        #expect(kept.deletedAt == nil)
+        #expect(kept.updatedAt == stamp)
+        #expect(kept.needsPush)
+    }
+
+    @Test func exportCSVOnlyCurrentAccount() throws {
+        store.userID = u
+        try store.add(expression: "1+1", result: "2")
+        store.userID = v
+        try store.add(expression: "2+2", result: "4")
+        let csv = try store.exportCSV()
+        #expect(csv.contains("2+2"))
+        #expect(!csv.contains("1+1"))
+    }
+
+    @Test func adoptAndPurgeBumpRevision() throws {
+        var before = store.revision
+        try store.adopt(userID: u)
+        #expect(store.revision > before)
+        before = store.revision
+        try store.purge(userID: u, keepUnsynced: true)
+        #expect(store.revision > before)
+    }
 }

@@ -203,7 +203,10 @@ import SwiftData
         return try context.fetch(descriptor).filter(\.fitsServer)
     }
 
+    /// Live rows of the signed-in account plus signed-out rows; another account's kept rows stay hidden and untouched.
     private func live() -> FetchDescriptor<HistoryEntry> {
-        FetchDescriptor(predicate: #Predicate { $0.deletedAt == nil }, sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+        let uid = userID
+        return FetchDescriptor(predicate: #Predicate { $0.deletedAt == nil && ($0.userID == uid || $0.userID == nil) },
+                               sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
     }
 }
