@@ -12,6 +12,7 @@ struct HistoryView: View {
     @State private var labelText = ""
     @State private var csv: CSVFile?
     @State private var clearing = false
+    @State private var hovered: HistoryEntry.ID?
 
     var body: some View {
         List {
@@ -19,6 +20,7 @@ struct HistoryView: View {
                 Section(section.title) {
                     ForEach(section.entries) { row($0) }
                 }
+                .listSectionSeparator(.hidden)
             }
         }
         .navigationTitle("History")
@@ -68,6 +70,16 @@ struct HistoryView: View {
             }
         }
         .buttonStyle(.plain)
+        .padding(.vertical, 6)
+        .listRowSeparator(.hidden)
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(hovered == entry.id ? Color.primary.opacity(0.08) : .clear)
+                .padding(.horizontal, 8)
+        )
+        .onHover { inside in
+            if inside { hovered = entry.id } else if hovered == entry.id { hovered = nil }
+        }
         .contextMenu { actions(entry) }
         .swipeActions(edge: .trailing) { actions(entry) }
     }
