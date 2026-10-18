@@ -105,3 +105,20 @@ import Testing
         #expect(model.recent.first?.result == "4")
     }
 }
+
+@Test func typedCharactersMapToKeys() {
+    #expect(Key(typed: "7") == .digit(7))
+    #expect(Key(typed: ".") == .decimal)
+    #expect(Key(typed: ",") == .decimal)
+    #expect(Key(typed: "+") == .add)
+    #expect(Key(typed: "-") == .subtract)
+    #expect(Key(typed: "*") == .multiply)
+    #expect(Key(typed: "x") == .multiply)
+    #expect(Key(typed: "/") == .divide)
+    #expect(Key(typed: "%") == .percent)
+    #expect(Key(typed: "(") == .openParen)
+    #expect(Key(typed: ")") == .closeParen)
+    #expect(Key(typed: "=") == .equals)
+    #expect(Key(typed: "\r") == .equals)
+    #expect(Key(typed: "a") == nil)
+}

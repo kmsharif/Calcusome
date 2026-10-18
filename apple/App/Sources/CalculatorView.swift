@@ -6,6 +6,7 @@ struct CalculatorView: View {
     @Environment(\.theme) private var theme
     @Environment(\.locale) private var locale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FocusState private var focused: Bool
 
     var body: some View {
         VStack(spacing: 12) {
@@ -18,6 +19,17 @@ struct CalculatorView: View {
         .background(theme.background)
         .focusable()
         .focusEffectDisabled()
+        .focused($focused)
+        .defaultFocus($focused, true)
+        .onKeyPress(.return) { model.press(.equals); return .handled }
+        .onKeyPress(.delete) { model.press(.backspace); return .handled }
+        .onKeyPress(.escape) { model.press(.clear); return .handled }
+        .onKeyPress { press in
+            guard press.modifiers.isDisjoint(with: [.command, .control]),
+                  let c = press.characters.first, let key = Key(typed: c) else { return .ignored }
+            model.press(key)
+            return .handled
+        }
         #if os(macOS)
         .pasteDestination(for: String.self) { strings in
             model.paste(strings.first ?? "")

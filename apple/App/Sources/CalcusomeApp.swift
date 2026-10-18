@@ -7,6 +7,12 @@ struct CalcusomeApp: App {
     @State private var model: CalculatorModel
     private let store: HistoryStore
     private let container: ModelContainer
+    #if os(macOS)
+    private let hotkey = GlobalHotkey {
+        NSApp.activate()
+        NSApp.windows.first { $0.canBecomeMain }?.makeKeyAndOrderFront(nil)
+    }
+    #endif
 
     init() {
         do {
@@ -28,6 +34,15 @@ struct CalcusomeApp: App {
         }
         .modelContainer(container)
         .defaultSize(width: 920, height: 760)
+
+        #if os(macOS)
+        MenuBarExtra("Calcusome", systemImage: "plus.forwardslash.minus") {
+            CalculatorView()
+                .environment(model)
+                .frame(width: 300, height: 480)
+        }
+        .menuBarExtraStyle(.window)
+        #endif
     }
 }
 

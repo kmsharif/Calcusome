@@ -20,6 +20,23 @@ public enum Key: Hashable, Sendable {
         }
     }
 
+    /// Hardware keyboard input. Both "." and "," mean decimal point, so either habit works.
+    public init?(typed c: Character) {
+        if let d = c.wholeNumberValue, c.isASCII { self = .digit(d); return }
+        switch c {
+        case ".", ",": self = .decimal
+        case "+": self = .add
+        case "-", "−": self = .subtract
+        case "*", "x", "X", "×": self = .multiply
+        case "/", "÷": self = .divide
+        case "%": self = .percent
+        case "(": self = .openParen
+        case ")": self = .closeParen
+        case "=", "\r", "\n": self = .equals
+        default: return nil
+        }
+    }
+
     var isOperator: Bool { [.add, .subtract, .multiply, .divide, .percent].contains(self) }
 }
 
