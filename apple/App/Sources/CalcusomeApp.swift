@@ -104,7 +104,7 @@ struct RootView: View {
         .environment(model)
         .themed()
         #if os(macOS)
-        .frame(minWidth: 680, minHeight: showKeypad ? 640 : 320)
+        .frame(minWidth: showHistory ? 660 : 360, minHeight: showKeypad ? 540 : 240)
         .background(FloatingWindow(floating: pinned))
         #else
         .sheet(isPresented: $showSettings) {
