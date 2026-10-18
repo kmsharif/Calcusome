@@ -31,6 +31,15 @@
     {"id": "trailing-op",      "input": "2+",               "error": "syntax"},
     {"id": "open-paren",       "input": "(2+3",             "error": "syntax"},
     {"id": "double-point",     "input": "2..5",             "error": "syntax"},
-    {"id": "leading-op",       "input": "×5",               "error": "syntax"}
+    {"id": "leading-op",       "input": "×5",               "error": "syntax"},
+    {"id": "en-grouping",   "locale": "en_US", "input": "1,234.5+1",  "expression": "1234.5+1",   "result": "1235.5"},
+    {"id": "de-grouping",   "locale": "de_DE", "input": "1.234,5+1",  "expression": "1234.5+1",   "result": "1235.5"},
+    {"id": "fr-nbsp",       "locale": "fr_FR", "input": "1\u202f234,5+1", "expression": "1234.5+1", "result": "1235.5"},
+    {"id": "bengali",       "locale": "bn_BD", "input": "৫০০×৬৪",     "expression": "500×64",     "result": "32000"},
+    {"id": "arabic-indic",  "locale": "ar_EG", "input": "٥٠٠×٦٤",     "expression": "500×64",     "result": "32000"},
+    {"id": "persian",       "locale": "fa_IR", "input": "۵۰۰×۶۴",     "expression": "500×64",     "result": "32000"},
+    {"id": "ascii-ops",     "locale": "en_US", "input": "12*3/4-1",   "expression": "12×3÷4−1",   "result": "8"},
+    {"id": "x-as-times",    "locale": "en_US", "input": "3x4",        "expression": "3×4",        "result": "12"},
+    {"id": "spaces",        "locale": "en_US", "input": " 2 + 2 ",    "expression": "2+2",        "result": "4"}
   ]
 }
