@@ -88,7 +88,7 @@ enum AccountError: LocalizedError {
     private func didSignIn(_ user: User) async {
         if case .signedIn(_, let current) = state {
             if current == user.id { return }  // `.signedIn` repeats the initial session
-            await tearDown(keepUnsynced: false)  // kept rows would be adopted into the new account right below
+            await tearDown(keepUnsynced: true)  // kept rows stay owned by the old account, so they can't leak into this one
         }
         try? store.adopt(userID: user.id)  // sets userID before saving; a failed save is retried by the next one
         let sync = SyncEngine(store: store, remote: SupabaseHistoryRemote(client: client), cursorKey: Self.cursorKey(user.id))

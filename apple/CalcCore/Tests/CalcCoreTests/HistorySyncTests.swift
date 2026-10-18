@@ -257,8 +257,19 @@ import Testing
         try store.purge(userID: u, keepUnsynced: true)
         let rest = try rawEntries()
         #expect(rest.map(\.id) == [unsynced.id])
-        #expect(unsynced.userID == nil)
+        #expect(unsynced.userID == u)  // owner kept: only that account's next sign-in pushes it
         #expect(unsynced.needsPush)
+    }
+
+    @Test func pendingOnlyCoversSignedInAccount() throws {
+        store.userID = u
+        let e = try store.add(expression: "1+1", result: "2")
+        store.userID = v
+        #expect(try store.pendingPush(limit: 10).isEmpty)
+        #expect(try store.pendingCount() == 0)
+        store.userID = u
+        #expect(try store.pendingPush(limit: 10).map(\.id) == [e.id])
+        #expect(try store.pendingCount() == 1)
     }
 
     @Test func purgeDiscardsWhenNotAsked() throws {

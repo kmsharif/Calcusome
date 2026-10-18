@@ -184,19 +184,21 @@ import SwiftData
     }
 
     /// Signs out: really deletes that account's rows from this device (the server keeps them). With `keepUnsynced`,
-    /// rows that never reached the server become signed-out rows instead, and the next sign-in claims them.
+    /// rows that never reached the server stay, still owned by `userID`: only that account's next sign-in pushes them.
     public func purge(userID: UUID, keepUnsynced: Bool) throws {
         for entry in try context.fetch(FetchDescriptor<HistoryEntry>(predicate: #Predicate { $0.userID == userID })) {
-            if keepUnsynced && entry.needsPush { entry.userID = nil } else { context.delete(entry) }
+            if !(keepUnsynced && entry.needsPush) { context.delete(entry) }
         }
         self.userID = nil
         try save(local: false)
     }
 
+    /// The signed-in account's dirty rows only: another account's kept rows would fail RLS and sink the whole batch.
     /// Rows over a server limit stay local-only: one would fail its whole push batch.
     /// ponytail: fetches every dirty row to filter in memory; fine while the backlog is small.
     private func pending() throws -> [HistoryEntry] {
-        let descriptor = FetchDescriptor<HistoryEntry>(predicate: #Predicate { $0.needsPush && $0.userID != nil },
+        guard let uid = userID else { return [] }
+        let descriptor = FetchDescriptor<HistoryEntry>(predicate: #Predicate { $0.needsPush && $0.userID == uid },
                                                        sortBy: [SortDescriptor(\.updatedAt)])
         return try context.fetch(descriptor).filter(\.fitsServer)
     }

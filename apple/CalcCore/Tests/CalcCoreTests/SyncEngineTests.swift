@@ -61,6 +61,7 @@ actor FakeRemote: HistoryRemote {
     func setOnPush(_ f: (@Sendable () async -> Void)?) { onPush = f }
     func setOnPull(_ f: (@Sendable () async -> Void)?) { onPull = f }
     func rowCount() -> Int { rows.count }
+    func expressions(of user: UUID) -> [String] { rows.values.filter { $0.userID == user }.map(\.expression).sorted() }
     /// Sends every pushed and pulled row through the app's JSON coder, as the real remote does.
     func setWire(_ on: Bool) { wire = on }
 
@@ -371,5 +372,23 @@ actor FakeRemote: HistoryRemote {
         guard case .failed = b.engine.status else { Issue.record("status \(b.engine.status)"); return }
         #expect(try b.store.all().map(\.deviceID).sorted() == ["A", "B"])
         #expect(try b.store.pendingCount() == 1)
+    }
+
+    @Test func keptRowsOfOtherAccountNeverPushed() async throws {
+        let w = UUID()
+        let d = try device("D")
+        try d.store.add(expression: "1+1", result: "2")  // u's edit, never synced
+        try d.store.purge(userID: u, keepUnsynced: true)
+        try d.store.adopt(userID: w)
+        try d.store.add(expression: "2+2", result: "4")
+        await SyncEngine(store: d.store, remote: remote, cursorKey: "w", defaults: d.defaults).sync()
+        #expect(await remote.expressions(of: u).isEmpty)
+        #expect(await remote.expressions(of: w) == ["2+2"])
+
+        try d.store.purge(userID: w, keepUnsynced: true)
+        try d.store.adopt(userID: u)
+        await SyncEngine(store: d.store, remote: remote, cursorKey: "u", defaults: d.defaults).sync()
+        #expect(await remote.expressions(of: u) == ["1+1"])
+        #expect(try d.store.pendingCount() == 0)
     }
 }
