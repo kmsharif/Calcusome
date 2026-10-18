@@ -41,10 +41,12 @@ import SwiftData
         return entries.filter(\.pinned) + entries.filter { !$0.pinned }
     }
 
-    public func search(_ text: String) throws -> [HistoryEntry] {
+    public func search(_ text: String, locale: Locale = .current) throws -> [HistoryEntry] {
         // ponytail: in-memory filter over all live rows; move into the predicate if history grows past ~10k.
-        try all().filter {
-            $0.expression.localizedStandardContains(text) || ($0.label?.localizedStandardContains(text) ?? false)
+        // Expressions are canonical, so match them against the canonical query; labels are free text.
+        let canonical = InputNormalizer.normalize(text, locale: locale)
+        return try all().filter {
+            $0.expression.localizedStandardContains(canonical) || ($0.label?.localizedStandardContains(text) ?? false)
         }
     }
 

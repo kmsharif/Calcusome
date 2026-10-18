@@ -65,12 +65,12 @@ public enum Key: Hashable, Sendable {
     public func press(_ key: Key) {
         error = nil
         switch key {
-        case .equals: evaluate()
+        case .equals: if !expression.isEmpty { evaluate() }
         case .clear: expression = ""; result = nil; lastSaved = nil
         case .backspace: startEditing(); if !expression.isEmpty { expression.removeLast() }
         case .negate:
             if let result { expression = Self.asExpression(result); self.result = nil }  // negate the shown result
-            negateLastNumber()
+            negateLastOperand()
         case .decimal:
             startEditing()
             if !trailingNumber.contains(".") { expression.append(".") }
@@ -104,8 +104,9 @@ public enum Key: Hashable, Sendable {
         do {
             let value = try Engine.evaluate(expression)
             result = value
-            guard expression != lastSaved else { return }
-            _ = try? store.add(expression: expression, result: value)
+            let isLoneNumber = expression.drop { $0 == "−" }.allSatisfy { $0.isNumber || $0 == "." }
+            guard expression != lastSaved, !isLoneNumber else { return }
+            guard (try? store.add(expression: expression, result: value)) != nil else { return }
             lastSaved = expression
             refreshRecent()
         } catch {
@@ -122,9 +123,26 @@ public enum Key: Hashable, Sendable {
         expression[(expression.lastIndex { !($0.isNumber || $0 == ".") }.map(expression.index(after:)) ?? expression.startIndex)...]
     }
 
-    private func negateLastNumber() {
+    /// Start of the last operand: a number or a parenthesised group, either optionally followed by %.
+    private var trailingOperandStart: Int? {
         let chars = Array(expression)
-        let start = chars.count - trailingNumber.count
+        var i = chars.count
+        if i > 0, chars[i - 1] == "%" { i -= 1 }
+        if i > 0, chars[i - 1] == ")" {
+            var depth = 0
+            repeat {
+                i -= 1
+                if chars[i] == ")" { depth += 1 } else if chars[i] == "(" { depth -= 1 }
+            } while depth > 0 && i > 0
+            return depth == 0 ? i : nil
+        }
+        while i > 0, chars[i - 1].isNumber || chars[i - 1] == "." { i -= 1 }
+        return i
+    }
+
+    private func negateLastOperand() {
+        guard let start = trailingOperandStart else { return }
+        let chars = Array(expression)
         let unaryMinus = start > 0 && chars[start - 1] == "−"
             && (start == 1 || "+−×÷(".contains(chars[start - 2]))
         if unaryMinus {

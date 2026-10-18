@@ -86,3 +86,15 @@ import Testing
         #expect(DeviceID.current(defaults) == first)
     }
 }
+
+extension HistoryStoreTests {
+    @Test func searchNormalizesExpressionQuery() throws {
+        try store.add(expression: "5−3", result: "2")
+        try store.add(expression: "1234.5+1", result: "1235.5")
+        let tax = try store.add(expression: "100×1.2", result: "120")
+        try store.setLabel(tax, "tax")
+        #expect(try store.search("5-3", locale: Locale(identifier: "en_US")).map(\.result) == ["2"])
+        #expect(try store.search("1234,5", locale: Locale(identifier: "de_DE")).map(\.result) == ["1235.5"])
+        #expect(try store.search("tax", locale: Locale(identifier: "en_US")).map(\.result) == ["120"])
+    }
+}

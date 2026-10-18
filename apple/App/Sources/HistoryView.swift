@@ -71,7 +71,7 @@ struct HistoryView: View {
     }
 
     private func reload() {
-        entries = (try? query.isEmpty ? store.all() : store.search(query)) ?? []
+        entries = (try? query.isEmpty ? store.all() : store.search(query, locale: locale)) ?? []
     }
 
     private var sections: [(title: String, entries: [HistoryEntry])] {

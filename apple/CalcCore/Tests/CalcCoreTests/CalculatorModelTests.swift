@@ -130,13 +130,13 @@ import Testing
 
 extension CalculatorModelTests {
     @Test func reuseAfterNumberMultiplies() throws {
-        press(.digit(8), .equals, .digit(1), .digit(2))
+        press(.digit(4), .add, .digit(4), .equals, .digit(1), .digit(2))
         model.reuse(try #require(model.recent.first))
         #expect(model.expression == "12×8")
     }
 
     @Test func reuseAfterParenMultiplies() throws {
-        press(.digit(8), .equals, .openParen, .digit(2), .closeParen)
+        press(.digit(4), .add, .digit(4), .equals, .openParen, .digit(2), .closeParen)
         model.reuse(try #require(model.recent.first))
         #expect(model.expression == "(2)×8")
     }
@@ -168,4 +168,36 @@ extension CalculatorModelTests {
 
 @Test func numpadEnterIsEquals() {
     #expect(Key(typed: "\u{3}") == .equals)
+}
+
+extension CalculatorModelTests {
+    @Test func negateWrapsParenGroup() {
+        press(.openParen, .digit(2), .add, .digit(3), .closeParen, .negate)
+        #expect(model.expression == "−(2+3)")
+        press(.negate)
+        #expect(model.expression == "(2+3)")
+        press(.multiply, .openParen, .digit(1), .closeParen, .negate)
+        #expect(model.expression == "(2+3)×−(1)")
+    }
+
+    @Test func negateWrapsPercent() {
+        press(.digit(2), .digit(0), .digit(0), .add, .digit(1), .digit(0), .percent, .negate)
+        #expect(model.expression == "200+−10%")
+        press(.equals)
+        #expect(model.result == "180")
+    }
+
+    @Test func equalsOnEmptyDoesNothing() {
+        press(.equals)
+        #expect(model.error == nil)
+        #expect(model.result == nil)
+    }
+
+    @Test func loneNumberNotSaved() throws {
+        press(.digit(1), .decimal, .digit(5), .digit(0), .equals)
+        #expect(model.result == "1.5")
+        press(.clear, .digit(7), .negate, .equals)
+        #expect(model.result == "-7")
+        #expect(try store.all().isEmpty)
+    }
 }
