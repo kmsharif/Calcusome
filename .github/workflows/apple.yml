@@ -6,3 +6,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: swift test --package-path apple/CalcCore
+  build-app:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - working-directory: apple/App
+        run: |
+          xcodegen
+          xcodebuild -scheme Calcusome -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
+          xcodebuild -scheme Calcusome -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build

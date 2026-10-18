@@ -14,6 +14,7 @@ struct CalculatorView: View {
             display
             RecentChipsView()
             KeypadView()
+                .simultaneousGesture(TapGesture().onEnded { focused = true })  // take typing back from the search field
         }
         .padding()
         .background(theme.background)
