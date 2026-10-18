@@ -1,0 +1,21 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - working-directory: apple/App
+        run: |
+          xcodegen
+          xcodebuild -scheme Calcusome -configuration Release -destination 'platform=macOS' -derivedDataPath DerivedData build
+          codesign --verify --verbose DerivedData/Build/Products/Release/Calcusome.app
+          ditto -c -k --keepParent DerivedData/Build/Products/Release/Calcusome.app "$GITHUB_WORKSPACE/Calcusome-macOS.zip"
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" Calcusome-macOS.zip --title "$GITHUB_REF_NAME" --generate-notes

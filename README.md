@@ -107,7 +107,9 @@ cp -R DerivedData/Build/Products/Release/Calcusome.app /Applications/
 
 An app you built on your own Mac isn't quarantined, so it opens normally.
 
-### Option B: you were given a `Calcusome.app` (zip, AirDrop, download)
+### Option B: download a release (or you were given a `Calcusome.app`)
+
+Prebuilt, ad-hoc-signed Mac builds are attached to each version on the [Releases page](https://github.com/kmsharif/Calcusome/releases). Download `Calcusome-macOS.zip` from the [latest release](https://github.com/kmsharif/Calcusome/releases/latest), or use a copy someone gave you (zip, AirDrop).
 
 1. Unzip it and drag **Calcusome.app** into **Applications**.
 2. Double-click it. macOS will say it *"cannot be opened because Apple cannot check it for malicious software"* (or *"…is damaged"*). Click **Done** / **Cancel**.
