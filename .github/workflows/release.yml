@@ -9,14 +9,21 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # the changelog needs the previous tag
       - run: brew install xcodegen
       - working-directory: apple/App
         run: |
           xcodegen
-          xcodebuild -scheme Calcusome -configuration Release -destination 'platform=macOS' -derivedDataPath DerivedData build
+          # The tag is the version, so the in-app update check compares against what was released.
+          xcodebuild -scheme Calcusome -configuration Release -destination 'platform=macOS' -derivedDataPath DerivedData build MARKETING_VERSION="${GITHUB_REF_NAME#v}"
           codesign --verify --verbose DerivedData/Build/Products/Release/Calcusome.app
           mkdir dmg && cp -R DerivedData/Build/Products/Release/Calcusome.app dmg/ && ln -s /Applications dmg/Applications
           hdiutil create -volname Calcusome -srcfolder dmg -format UDZO "$GITHUB_WORKSPACE/Calcusome-macOS.dmg"
       - env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" Calcusome-macOS.dmg --title "$GITHUB_REF_NAME" --generate-notes
+        # Commit subjects since the previous tag; the app shows these as the changelog.
+        run: |
+          prev=$(git describe --tags --abbrev=0 "$GITHUB_REF_NAME^" 2>/dev/null || true)
+          git log --no-merges --pretty='- %s' "${prev:+$prev..}$GITHUB_REF_NAME" > notes.md
+          gh release create "$GITHUB_REF_NAME" Calcusome-macOS.dmg --title "$GITHUB_REF_NAME" --notes-file notes.md

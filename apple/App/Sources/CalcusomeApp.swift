@@ -11,6 +11,7 @@ struct CalcusomeApp: App {
     @AppStorage(Pref.menuBar) private var showMenuBar = true
     @AppStorage(Pref.hotkey) private var hotkeyEnabled = true
     @State private var hotkey: GlobalHotkey?
+    private let updater = Updater()
     #endif
 
     init() {
@@ -21,6 +22,9 @@ struct CalcusomeApp: App {
         }
         store = HistoryStore(container: container, deviceID: DeviceID.current())
         account = Account(store: store)
+        #if os(macOS)
+        updater.start()
+        #endif
     }
 
     var body: some Scene {
@@ -36,6 +40,11 @@ struct CalcusomeApp: App {
                 NSApp.activate()
                 NSApp.windows.first { $0.canBecomeMain }?.makeKeyAndOrderFront(nil)
             } : nil  // releasing it unregisters the shortcut
+        }
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") { Task { await updater.check(manual: true) } }
+            }
         }
         #endif
 

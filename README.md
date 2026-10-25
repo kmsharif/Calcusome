@@ -124,6 +124,8 @@ xattr -dr com.apple.quarantine /Applications/Calcusome.app
 
 Only do this for a copy you trust, from a source you know.
 
+Calcusome checks for a new release at launch and once a day, or any time from **Calcusome → Check for Updates…**. It shows the changelog, and **Update** installs the new version in place and relaunches, with no Gatekeeper steps this time.
+
 ### iPad
 
 iPadOS can't install unsigned apps, so the app has to be signed with your own Apple ID:
