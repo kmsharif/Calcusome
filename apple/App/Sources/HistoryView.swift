@@ -13,6 +13,8 @@ struct HistoryView: View {
     @State private var csv: CSVFile?
     @State private var clearing = false
     @State private var hovered: HistoryEntry.ID?
+    @State private var hoveringList = false  // scroll bar only while the pointer is over the list
+    @Environment(\.theme) private var theme
 
     var body: some View {
         List {
@@ -23,6 +25,10 @@ struct HistoryView: View {
                 .listSectionSeparator(.hidden)
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(theme.background)
+        .scrollIndicators(hoveringList ? .visible : .never)  // .hidden still shows under "Always show scroll bars"
+        .onHover { hoveringList = $0 }
         .navigationTitle("History")
         .searchable(text: $query, prompt: "Search labels and expressions")
         .overlay {
