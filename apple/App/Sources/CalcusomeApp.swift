@@ -59,6 +59,9 @@ struct RootView: View {
     let store: HistoryStore
     @State private var model: CalculatorModel
     @AppStorage("showHistory") private var showHistory = true
+    @AppStorage("historyWidth") private var historyWidth = 300.0
+    @State private var dragStartWidth: Double?
+    @State private var rootWidth = Double.infinity
     @State private var showSettings = false
     @AppStorage(Pref.autoClearDays) private var autoClearDays = 0
     @AppStorage(Pref.showKeypad) private var showKeypad = true
@@ -79,9 +82,19 @@ struct RootView: View {
                     HistoryView(store: store)
                         .toolbar { ToolbarItem(placement: .navigation) { historyToggle } }
                 }
-                .frame(width: 300)
+                .frame(width: sidebarWidth)
                 .transition(.move(edge: .leading))
                 Divider()
+                    .overlay {
+                        Color.clear
+                            .frame(width: 8)
+                            .contentShape(Rectangle())
+                            #if os(macOS)
+                            .pointerStyle(.columnResize)
+                            #endif
+                            .gesture(resizeDrag)
+                    }
+                    .zIndex(1)  // keep the grab area above the calculator
             }
             NavigationStack {
                 CalculatorView()
@@ -103,9 +116,10 @@ struct RootView: View {
         .animation(.snappy, value: showHistory)
         .environment(model)
         .themed()
+        .onGeometryChange(for: Double.self) { $0.size.width } action: { rootWidth = $0 }
         #if os(macOS)
         .frame(minWidth: 230, minHeight: showKeypad ? 380 : 200)
-        .onGeometryChange(for: Bool.self) { $0.size.width < Self.historyMinWidth } action: { tooNarrow in
+        .onGeometryChange(for: Bool.self) { $0.size.width < Self.sidebarMinWidth + Self.calculatorMinWidth } action: { tooNarrow in
             if tooNarrow { showHistory = false }  // dragging the window narrow folds the sidebar away
         }
         .toolbar(removing: .title)  // like Calculator.app; keeps the narrow toolbar from overflowing
@@ -131,9 +145,9 @@ struct RootView: View {
             showHistory.toggle()
             #if os(macOS)
             // Make room for the sidebar instead of letting the width check fold it away again.
-            if showHistory, let window = NSApp.keyWindow, window.frame.width < Self.historyMinWidth {
+            if showHistory, let window = NSApp.keyWindow, window.frame.width < historyWidth + Self.calculatorMinWidth {
                 var frame = window.frame
-                frame.size.width = Self.historyMinWidth + 60
+                frame.size.width = historyWidth + Self.calculatorMinWidth + 60
                 window.setFrame(frame, display: true, animate: true)
             }
             #endif
@@ -141,10 +155,33 @@ struct RootView: View {
         .keyboardShortcut("s", modifiers: [.command, .control])
     }
 
-    #if os(macOS)
-    /// Sidebar (300) + divider + the calculator's minimum width.
-    private static let historyMinWidth: CGFloat = 531
-    #endif
+    /// Narrowest the sidebar gets; dragging the divider `collapseOvershoot` past it hides the sidebar.
+    private static let sidebarMinWidth = 220.0
+    private static let collapseOvershoot = 60.0
+    /// Divider + the calculator's minimum width.
+    private static let calculatorMinWidth = 231.0
+
+    /// The saved width, squeezed so the calculator keeps its minimum width.
+    private var sidebarWidth: Double {
+        max(Self.sidebarMinWidth, min(historyWidth, rootWidth - Self.calculatorMinWidth))
+    }
+
+    private var resizeDrag: some Gesture {
+        // Global space: the divider moves with the drag, so local translations would jitter.
+        DragGesture(minimumDistance: 1, coordinateSpace: .global)
+            .onChanged { drag in
+                let start = dragStartWidth ?? sidebarWidth
+                dragStartWidth = start
+                let proposed = start + drag.translation.width
+                if proposed < Self.sidebarMinWidth - Self.collapseOvershoot {
+                    dragStartWidth = nil
+                    showHistory = false
+                } else {
+                    historyWidth = max(Self.sidebarMinWidth, min(proposed, rootWidth - Self.calculatorMinWidth))
+                }
+            }
+            .onEnded { _ in dragStartWidth = nil }
+    }
 
     private func autoClear() {
         guard autoClearDays > 0,
