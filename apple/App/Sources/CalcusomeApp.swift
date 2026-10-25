@@ -104,7 +104,11 @@ struct RootView: View {
         .environment(model)
         .themed()
         #if os(macOS)
-        .frame(minWidth: showHistory ? 660 : 360, minHeight: showKeypad ? 540 : 240)
+        .frame(minWidth: 230, minHeight: showKeypad ? 380 : 200)
+        .onGeometryChange(for: Bool.self) { $0.size.width < Self.historyMinWidth } action: { tooNarrow in
+            if tooNarrow { showHistory = false }  // dragging the window narrow folds the sidebar away
+        }
+        .toolbar(removing: .title)  // like Calculator.app; keeps the narrow toolbar from overflowing
         .background(FloatingWindow(floating: pinned))
         #else
         .sheet(isPresented: $showSettings) {
@@ -123,9 +127,24 @@ struct RootView: View {
     }
 
     private var historyToggle: some View {
-        Button(showHistory ? "Hide History" : "Show History", systemImage: "sidebar.left") { showHistory.toggle() }
-            .keyboardShortcut("s", modifiers: [.command, .control])
+        Button(showHistory ? "Hide History" : "Show History", systemImage: "sidebar.left") {
+            showHistory.toggle()
+            #if os(macOS)
+            // Make room for the sidebar instead of letting the width check fold it away again.
+            if showHistory, let window = NSApp.keyWindow, window.frame.width < Self.historyMinWidth {
+                var frame = window.frame
+                frame.size.width = Self.historyMinWidth + 60
+                window.setFrame(frame, display: true, animate: true)
+            }
+            #endif
+        }
+        .keyboardShortcut("s", modifiers: [.command, .control])
     }
+
+    #if os(macOS)
+    /// Sidebar (300) + divider + the calculator's minimum width.
+    private static let historyMinWidth: CGFloat = 531
+    #endif
 
     private func autoClear() {
         guard autoClearDays > 0,

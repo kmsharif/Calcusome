@@ -12,18 +12,20 @@ struct CalculatorView: View {
     @AppStorage(Pref.showKeypad) private var showKeypad = true
     @AppStorage(Pref.showRecent) private var showRecent = true
     @AppStorage(Pref.copyOnEquals) private var copyOnEquals = false
+    @State private var compact = false  // short window: tighter spacing, no recent chips
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: compact ? 8 : 12) {
             Spacer(minLength: 0)
             display
-            if showRecent { RecentChipsView() }
+            if showRecent && !compact { RecentChipsView() }
             if showKeypad {
-                KeypadView()
+                KeypadView(spacing: compact ? 6 : 10)
                     .simultaneousGesture(TapGesture().onEnded { focused = true })  // take typing back from the search field
             }
         }
-        .padding()
+        .padding(compact ? 10 : 16)
+        .onGeometryChange(for: Bool.self) { $0.size.height < 480 } action: { compact = $0 }
         .background(theme.background)
         .focusable()
         .focusEffectDisabled()

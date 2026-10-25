@@ -4,6 +4,7 @@ import SwiftUI
 struct KeypadView: View {
     @Environment(CalculatorModel.self) private var model
     @Environment(\.theme) private var theme
+    var spacing: CGFloat = 10
 
     private enum Style { case digit, function, op, equals }
 
@@ -45,12 +46,12 @@ struct KeypadView: View {
     ]
 
     var body: some View {
-        Grid(horizontalSpacing: 10, verticalSpacing: 10) {
+        Grid(horizontalSpacing: spacing, verticalSpacing: spacing) {
             GridRow {
-                ForEach(memoryRow) { spec in button(spec).frame(height: 44) }
+                ForEach(memoryRow) { spec in button(spec).frame(maxHeight: 44) }
             }
             GridRow {
-                ForEach(utilityRow) { spec in button(spec).frame(height: 44) }
+                ForEach(utilityRow) { spec in button(spec).frame(maxHeight: 44) }
                 Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
             }
             ForEach(rows.indices, id: \.self) { r in
@@ -68,6 +69,7 @@ struct KeypadView: View {
         Button { model.press(spec.key) } label: {
             Text(spec.title)
                 .font(theme.keyFont)
+                .minimumScaleFactor(0.5)  // keys shrink with the window
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .foregroundStyle(theme.keyText)
                 .background(color(spec.style), in: .rect(cornerRadius: theme.keyCornerRadius))
