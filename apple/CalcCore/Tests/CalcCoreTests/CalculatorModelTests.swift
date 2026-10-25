@@ -231,4 +231,23 @@ extension CalculatorModelTests {
         #expect(other.recent.first?.result == "4")
         #expect(other.expression == "")  // input stays per window
     }
+
+    @Test func memoryAddSubtractRecallClear() {
+        press(.digit(2), .add, .digit(3), .equals, .memoryAdd)  // adds the result: 5
+        press(.digit(4), .memoryAdd)  // adds the input so far: 9
+        press(.digit(1), .memorySubtract)  // input is now 41: 9 − 41
+        #expect(model.memory == "-32")
+        press(.clear, .digit(2), .memoryRecall)
+        #expect(model.expression == "2×−32")
+        press(.memoryClear)
+        #expect(model.memory == nil)
+        press(.memoryRecall)
+        #expect(model.expression == "2×−32")
+    }
+
+    @Test func memoryIgnoresIncompleteInput() {
+        press(.digit(5), .add, .memoryAdd)
+        #expect(model.memory == nil)
+        #expect(model.expression == "5+")
+    }
 }

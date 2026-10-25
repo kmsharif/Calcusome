@@ -69,7 +69,15 @@ struct CalculatorView: View {
                 .contentTransition(reduceMotion ? .identity : .numericText())
                 .animation(reduceMotion ? nil : .snappy, value: primaryLine)
                 .accessibilityAddTraits(.updatesFrequently)
-            formatMenu
+            HStack(spacing: 6) {
+                if model.memory != nil {
+                    Text("M")
+                        .font(.caption.weight(.semibold).monospaced())
+                        .foregroundStyle(theme.secondaryText)
+                        .accessibilityLabel("Memory in use")
+                }
+                formatMenu
+            }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
         .contentShape(.rect)

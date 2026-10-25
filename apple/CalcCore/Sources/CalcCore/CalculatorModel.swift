@@ -4,6 +4,7 @@ import Observation
 public enum Key: Hashable, Sendable {
     case digit(Int), decimal, add, subtract, multiply, divide, percent, openParen, closeParen
     case negate, backspace, clear, equals
+    case memoryAdd, memorySubtract, memoryRecall, memoryClear
 
     var symbol: Character? {
         switch self {
@@ -50,6 +51,8 @@ public enum Key: Hashable, Sendable {
     public private(set) var expression = ""
     public private(set) var result: String?
     public private(set) var error: CalcError?
+    /// Calculator memory (M+, M−, MR, MC), canonical like `result`; nil when empty.
+    public private(set) var memory: String?
 
     @ObservationIgnored private let store: HistoryStore
     @ObservationIgnored private let locale: Locale
@@ -69,6 +72,10 @@ public enum Key: Hashable, Sendable {
         case .negate:
             if let result { expression = Self.asExpression(result); self.result = nil }  // negate the shown result
             negateLastOperand()
+        case .memoryAdd: addToMemory(negated: false)
+        case .memorySubtract: addToMemory(negated: true)
+        case .memoryRecall: if let memory { insert(Self.asExpression(memory)) }
+        case .memoryClear: memory = nil
         case .decimal:
             startEditing()
             if !trailingNumber.contains(".") { expression.append(".") }
@@ -93,11 +100,26 @@ public enum Key: Hashable, Sendable {
     /// Chip tap: append a past result (or its expression), or start from it right after "=".
     /// An expression joining existing input is parenthesised so it keeps its meaning.
     public func reuse(_ entry: HistoryEntry, expression useExpression: Bool = false) {
+        if useExpression { insert(entry.expression, group: true) } else { insert(Self.asExpression(entry.result)) }
+        error = nil
+    }
+
+    private func insert(_ text: String, group: Bool = false) {
         startEditing()
         if let last = expression.last, last.isNumber || ".)%".contains(last) { expression.append("×") }
-        let text = useExpression ? entry.expression : Self.asExpression(entry.result)
-        expression += useExpression && !expression.isEmpty ? "(\(text))" : text
-        error = nil
+        expression += group && !expression.isEmpty ? "(\(text))" : text
+    }
+
+    /// Adds the shown value (the result, or the expression so far) to memory.
+    private func addToMemory(negated: Bool) {
+        guard let value = result ?? (try? Engine.evaluate(expression)) else { return }
+        let operand = "(\(Self.asExpression(value)))"
+        do {
+            memory = try Engine.evaluate(memory.map { "(\(Self.asExpression($0)))" + (negated ? "−" : "+") + operand }
+                                         ?? (negated ? "−" + operand : operand))
+        } catch {
+            self.error = error
+        }
     }
 
     private func evaluate() {

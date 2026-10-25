@@ -18,6 +18,13 @@ struct KeypadView: View {
 
     private static func digit(_ d: Int) -> Spec { Spec(key: .digit(d), title: "\(d)", label: "\(d)", style: .digit) }
 
+    private let memoryRow: [Spec] = [
+        Spec(key: .memoryClear, title: "MC", label: "memory clear", style: .function),
+        Spec(key: .memoryRecall, title: "MR", label: "memory recall", style: .function),
+        Spec(key: .memorySubtract, title: "M−", label: "memory minus", style: .function),
+        Spec(key: .memoryAdd, title: "M+", label: "memory plus", style: .function),
+    ]
+
     private let utilityRow: [Spec] = [
         Spec(key: .openParen, title: "(", label: "open parenthesis", style: .function),
         Spec(key: .closeParen, title: ")", label: "close parenthesis", style: .function),
@@ -39,6 +46,9 @@ struct KeypadView: View {
 
     var body: some View {
         Grid(horizontalSpacing: 10, verticalSpacing: 10) {
+            GridRow {
+                ForEach(memoryRow) { spec in button(spec).frame(height: 44) }
+            }
             GridRow {
                 ForEach(utilityRow) { spec in button(spec).frame(height: 44) }
                 Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])

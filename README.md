@@ -10,6 +10,7 @@ A fast, keyboard-first calculator for **macOS** and **iPad**, with exact decimal
 - **Exact decimal math.** Every number and operation is rounded to 34 significant digits (half-even), so `0.1 + 0.2` is `0.3` and not `0.30000000000000004`.
 - **Live result while you type.** The answer appears above the expression (`= 19,560`) before you press `=`.
 - **Parentheses, percent, ± and backspace.** Percent works the way people expect: `200 + 10%` is `220`, and `50%` on its own is `0.5`.
+- **Memory keys.** **M+** and **M−** add or subtract the shown value (the result, or the input so far), **MR** drops the memory into the expression, **MC** clears it. An **M** next to the format badge shows memory is in use.
 - **Recent-result chips.** The last 8 results sit under the display. Tap one to drop it into the current expression.
 - **Clear errors.** You see *Incomplete*, *Can't divide by 0* or *Too large* instead of a silent `NaN`.
 - **Paste anything.** ⌘V on Mac, or long-press the display on iPad. `1,250 * 12`, `1.250,5 x 3` (in a comma-decimal locale) and Arabic-Indic, Persian or Bengali digits are all cleaned up into a valid expression.
