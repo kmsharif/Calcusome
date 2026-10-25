@@ -15,7 +15,8 @@ jobs:
           xcodegen
           xcodebuild -scheme Calcusome -configuration Release -destination 'platform=macOS' -derivedDataPath DerivedData build
           codesign --verify --verbose DerivedData/Build/Products/Release/Calcusome.app
-          ditto -c -k --keepParent DerivedData/Build/Products/Release/Calcusome.app "$GITHUB_WORKSPACE/Calcusome-macOS.zip"
+          mkdir dmg && cp -R DerivedData/Build/Products/Release/Calcusome.app dmg/ && ln -s /Applications dmg/Applications
+          hdiutil create -volname Calcusome -srcfolder dmg -format UDZO "$GITHUB_WORKSPACE/Calcusome-macOS.dmg"
       - env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" Calcusome-macOS.zip --title "$GITHUB_REF_NAME" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" Calcusome-macOS.dmg --title "$GITHUB_REF_NAME" --generate-notes
