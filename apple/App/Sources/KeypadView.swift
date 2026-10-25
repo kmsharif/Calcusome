@@ -48,7 +48,7 @@ struct KeypadView: View {
     var body: some View {
         Grid(horizontalSpacing: spacing, verticalSpacing: spacing) {
             GridRow {
-                ForEach(memoryRow) { spec in button(spec).frame(maxHeight: 44) }
+                ForEach(memoryRow) { spec in button(spec, textScale: 0.6).frame(maxHeight: 44) }  // two-letter labels fill the short row at full size
             }
             GridRow {
                 ForEach(utilityRow) { spec in button(spec).frame(maxHeight: 44) }
@@ -65,10 +65,10 @@ struct KeypadView: View {
         .frame(maxHeight: 520)
     }
 
-    private func button(_ spec: Spec) -> some View {
+    private func button(_ spec: Spec, textScale: CGFloat = 1) -> some View {
         Button { model.press(spec.key) } label: {
             Text(spec.title)
-                .font(theme.keyFont)
+                .font(theme.keyFont(scale: textScale))
                 .minimumScaleFactor(0.5)  // keys shrink with the window
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .foregroundStyle(theme.keyText)

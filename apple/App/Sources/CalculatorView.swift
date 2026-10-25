@@ -13,6 +13,7 @@ struct CalculatorView: View {
     @AppStorage(Pref.showRecent) private var showRecent = true
     @AppStorage(Pref.copyOnEquals) private var copyOnEquals = false
     @State private var compact = false  // short window: tighter spacing, no recent chips
+    @State private var width: CGFloat = .infinity
 
     var body: some View {
         VStack(spacing: compact ? 8 : 12) {
@@ -26,6 +27,7 @@ struct CalculatorView: View {
         }
         .padding(compact ? 10 : 16)
         .onGeometryChange(for: Bool.self) { $0.size.height < 480 } action: { compact = $0 }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .background(theme.background)
         .focusable()
         .focusEffectDisabled()
@@ -63,7 +65,7 @@ struct CalculatorView: View {
                 .lineLimit(1)
                 .truncationMode(.head)
             Text(primaryLine)
-                .font(theme.displayFont.monospacedDigit())
+                .font(theme.displayFont(scale: displayScale).monospacedDigit())
                 .foregroundStyle(theme.resultColor)
                 .lineLimit(formatted != nil && format == .binary ? 2 : 1)
                 .minimumScaleFactor(0.18)  // a grouped 34-digit result still fits the minimum window
@@ -88,6 +90,9 @@ struct CalculatorView: View {
             PasteButton(payloadType: String.self) { strings in model.paste(strings.first ?? "") }
         }
     }
+
+    /// Narrow window: shrink the result digits. Full size needs a width of about six display sizes.
+    private var displayScale: CGFloat { min(1, max(0.4, width / (theme.displaySize * 6))) }
 
     private var expressionText: String {
         InputNormalizer.display(expression: model.expression, locale: locale)

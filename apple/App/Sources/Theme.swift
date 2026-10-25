@@ -18,8 +18,8 @@ struct Theme: Identifiable, Sendable {
     var displaySize: CGFloat = 88
     var keySize: CGFloat = 30
 
-    var displayFont: Font { .system(size: displaySize, weight: .bold, design: fontDesign).width(.condensed) }
-    var keyFont: Font { .system(size: keySize, weight: .medium, design: fontDesign) }
+    func displayFont(scale: CGFloat = 1) -> Font { .system(size: displaySize * scale, weight: .bold, design: fontDesign).width(.condensed) }
+    func keyFont(scale: CGFloat = 1) -> Font { .system(size: keySize * scale, weight: .medium, design: fontDesign) }
 
     /// This theme at a size setting; `display` is the medium display size for the surface.
     func sized(_ size: DisplaySize, display: CGFloat = 88) -> Theme {
