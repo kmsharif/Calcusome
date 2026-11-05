@@ -26,6 +26,7 @@ struct HistoryView: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .focusable(false)  // no selection to navigate; on Mac it took keyboard focus from the calculator at launch
         .background(theme.background)
         .scrollIndicators(hoveringList ? .visible : .never)  // .hidden still shows under "Always show scroll bars"
         .onHover { hoveringList = $0 }

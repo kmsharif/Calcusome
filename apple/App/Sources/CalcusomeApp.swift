@@ -215,13 +215,20 @@ struct FloatingWindow: NSViewRepresentable {
 struct MenuBarCalculator: View {
     @State private var model: CalculatorModel
     @AppStorage(Pref.showKeypad) private var showKeypad = true
+    @State private var opens = 0
 
     init(store: HistoryStore) {
         _model = State(initialValue: CalculatorModel(store: store))
     }
 
     var body: some View {
+        // The menu bar window keeps its view between opens, so focus is only set the first time.
+        // A fresh view on every open takes keyboard focus again; the model (input) is kept.
         CalculatorView()
+            .id(opens)
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) {
+                if $0.object is NSPanel { opens += 1 }
+            }
             .environment(model)
             .themed(display: 44)
             .frame(width: 300, height: showKeypad ? 480 : 220)

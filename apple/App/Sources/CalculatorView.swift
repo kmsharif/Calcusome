@@ -33,6 +33,7 @@ struct CalculatorView: View {
         .focusEffectDisabled()
         .focused($focused)
         .defaultFocus($focused, true)
+        .onAppear { focused = true }
         .background {
             // A window-level shortcut, so Return evaluates even when keyboard navigation
             // has focused a chip, history row, or key (onKeyPress only sees our own focus).
