@@ -40,7 +40,6 @@ struct CalculatorView: View {
                 .keyboardShortcut(.defaultAction)
                 .hidden()
         }
-        .onKeyPress(.delete) { model.press(.backspace); return .handled }
         .onKeyPress(.escape) { model.press(.clear); return .handled }
         .onKeyPress { press in
             guard press.modifiers.isDisjoint(with: [.command, .control]),

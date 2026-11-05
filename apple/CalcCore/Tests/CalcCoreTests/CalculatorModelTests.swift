@@ -130,6 +130,8 @@ import Testing
 
 @Test func typedCharactersMapToKeys() {
     #expect(Key(typed: "7") == .digit(7))
+    #expect(Key(typed: "\u{7F}") == .backspace)
+    #expect(Key(typed: "\u{8}") == .backspace)
     #expect(Key(typed: ".") == .decimal)
     #expect(Key(typed: "+") == .add)
     #expect(Key(typed: "-") == .subtract)

@@ -40,6 +40,7 @@ public enum Key: Hashable, Sendable {
         case "(": self = .openParen
         case ")": self = .closeParen
         case "=", "\r", "\n", "\u{3}": self = .equals  // U+0003 is numpad Enter on Mac
+        case "\u{7F}", "\u{8}": self = .backspace  // Mac Backspace sends U+007F; hardware keyboards on iPad send U+0008
         default: return nil
         }
     }
