@@ -1,11 +1,17 @@
 import CalcCore
 import SwiftUI
 
+extension EnvironmentValues {
+    /// Bump to make the calculator take keyboard focus back.
+    @Entry var calculatorRefocus = 0
+}
+
 struct CalculatorView: View {
     @Environment(CalculatorModel.self) private var model
     @Environment(\.theme) private var theme
     @Environment(\.locale) private var locale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.calculatorRefocus) private var refocus
     @FocusState private var focused: Bool
     @AppStorage(Pref.resultFormat) private var format = ResultFormat.decimal
     @AppStorage(Pref.grouping) private var grouping = true
@@ -34,6 +40,7 @@ struct CalculatorView: View {
         .focused($focused)
         .defaultFocus($focused, true)
         .onAppear { focused = true }
+        .onChange(of: refocus) { focused = true }  // a click elsewhere (history) took focus; typing comes back here
         .background {
             // A window-level shortcut, so Return evaluates even when keyboard navigation
             // has focused a chip, history row, or key (onKeyPress only sees our own focus).

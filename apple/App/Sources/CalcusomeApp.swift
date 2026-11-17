@@ -77,6 +77,7 @@ struct RootView: View {
     @SceneStorage("pinned") private var pinned = false
     @Environment(\.scenePhase) private var scenePhase
     @Environment(Account.self) private var account
+    @State private var refocus = 0
 
     init(store: HistoryStore) {
         self.store = store
@@ -89,6 +90,7 @@ struct RootView: View {
             if showHistory {
                 NavigationStack {
                     HistoryView(store: store)
+                        .simultaneousGesture(TapGesture().onEnded { refocus += 1 })
                         .toolbar { ToolbarItem(placement: .navigation) { historyToggle } }
                 }
                 .frame(width: sidebarWidth)
@@ -124,6 +126,7 @@ struct RootView: View {
         }
         .animation(.snappy, value: showHistory)
         .environment(model)
+        .environment(\.calculatorRefocus, refocus)
         .themed()
         .onGeometryChange(for: Double.self) { $0.size.width } action: { rootWidth = $0 }
         #if os(macOS)
