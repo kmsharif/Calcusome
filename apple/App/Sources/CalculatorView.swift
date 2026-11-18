@@ -20,6 +20,12 @@ struct CalculatorView: View {
     @AppStorage(Pref.copyOnEquals) private var copyOnEquals = false
     @State private var compact = false  // short window: tighter spacing, no recent chips
     @State private var width: CGFloat = .infinity
+    @State private var toast: Toast?
+
+    private struct Toast: Equatable {
+        let id = UUID()
+        let text: String
+    }
 
     var body: some View {
         VStack(spacing: compact ? 8 : 12) {
@@ -27,11 +33,37 @@ struct CalculatorView: View {
             display
             if showRecent && !compact { RecentChipsView() }
             if showKeypad {
-                KeypadView(spacing: compact ? 6 : 10)
+                KeypadView(spacing: compact ? 6 : 10) { text in
+                    withAnimation(reduceMotion ? nil : .snappy) { toast = Toast(text: text) }
+                    AccessibilityNotification.Announcement(text).post()
+                }
                     .simultaneousGesture(TapGesture().onEnded { focused = true })  // take typing back from the search field
             }
         }
         .padding(compact ? 10 : 16)
+        .overlay(alignment: .top) {
+            if let toast {
+                Text(toast.text)
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(theme.keyText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(theme.functionKeyColor, in: .capsule)
+                    .shadow(color: .black.opacity(0.2), radius: 6, y: 2)
+                    .padding(.top, compact ? 6 : 12)
+                    .padding(.horizontal)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)  // announced instead
+                    .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                    .id(toast.id)
+            }
+        }
+        .task(id: toast?.id) {
+            guard toast != nil, (try? await Task.sleep(for: .seconds(1.5))) != nil else { return }
+            withAnimation(reduceMotion ? nil : .snappy) { toast = nil }
+        }
         .onGeometryChange(for: Bool.self) { $0.size.height < 480 } action: { compact = $0 }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .background(theme.background)

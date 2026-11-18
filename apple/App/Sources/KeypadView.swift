@@ -4,7 +4,11 @@ import SwiftUI
 struct KeypadView: View {
     @Environment(CalculatorModel.self) private var model
     @Environment(\.theme) private var theme
+    @Environment(\.locale) private var locale
+    @AppStorage(Pref.grouping) private var grouping = true
     var spacing: CGFloat = 10
+    /// Called after a memory key with a short note on what it did.
+    var onMemoryAction: (String) -> Void = { _ in }
 
     private enum Style { case digit, function, op, equals }
 
@@ -66,7 +70,7 @@ struct KeypadView: View {
     }
 
     private func button(_ spec: Spec, textScale: CGFloat = 1) -> some View {
-        Button { model.press(spec.key) } label: {
+        Button { press(spec.key) } label: {
             Text(spec.title)
                 .font(theme.keyFont(scale: textScale))
                 .minimumScaleFactor(0.5)  // keys shrink with the window
@@ -77,6 +81,28 @@ struct KeypadView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(spec.label)
+    }
+
+    private func press(_ key: Key) {
+        let before = model.memory
+        model.press(key)
+        guard model.error == nil else { return }  // the display already shows the error
+        let after = model.memory
+        let shown = { InputNormalizer.display(result: $0, locale: locale, grouping: grouping) }
+        let message: String? = switch key {
+        case .memoryClear: before == nil ? "Memory is already empty" : "Memory cleared"
+        case .memoryRecall: after.map { "Recalled \(shown($0))" } ?? "Memory is empty"
+        case .memoryAdd, .memorySubtract:
+            if let after, after != before {
+                (key == .memoryAdd ? "Added to memory" : "Subtracted from memory") + " · M = \(shown(after))"
+            } else if let after {
+                "Memory unchanged · M = \(shown(after))"  // nothing to add, or added 0
+            } else {
+                "Nothing to add to memory"
+            }
+        default: nil
+        }
+        if let message { onMemoryAction(message) }
     }
 
     private func color(_ style: Style) -> Color {
